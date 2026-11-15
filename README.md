@@ -8,7 +8,11 @@ Open `index.html` directly, or serve this folder with any static web server. The
 
 ## GitHub Pages
 
-Upload the **contents** of this folder to the root of your repository (so `index.html`, `app.js`, `enhancements.js`, and `styles.css` are at repository root). In Settings → Pages, choose **Deploy from a branch**, select `main` and `/(root)`. The included `.nojekyll` file avoids Jekyll processing.
+Upload the **contents** of this folder to the root of your repository (so `index.html`, `app.js`, `enhancements.js`, `editor-pro.js`, and `styles.css` are at repository root). In Settings → Pages, choose **Deploy from a branch**, select `main` and `/(root)`. The included `.nojekyll` file avoids Jekyll processing.
+
+## Editor redesign
+
+The editor uses a focused document-workspace layout: guided section navigation, a resume-completeness meter, live A4 preview, preview zoom controls, a full preview mode, keyboard shortcuts (Ctrl/Cmd+S to save; Ctrl/Cmd+Shift+P to preview), and responsive mobile layout. Existing resume fields, repeatable experience/education/project entries, template switching, local storage and ATS tools remain in place.
 
 ## Features
 
