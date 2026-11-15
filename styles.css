@@ -603,6 +603,21 @@ body.reze-page-inline-editing #view-preview #previewPages .resume-section-edit-a
 .reze-section-modal-body{margin:16px 22px;min-height:220px;max-height:48vh;overflow:auto;padding:16px;border:1px solid #b99bda;border-radius:10px;background:#fff;color:#28232e;font:13px/1.55 Arial,sans-serif;outline:none;caret-color:#000;cursor:text}
 .reze-section-modal-body:focus{border-color:#8d62c1;box-shadow:0 0 0 3px rgba(155,116,218,.12)}
 .reze-section-modal-body *{caret-color:#000!important;cursor:text!important}
+/* Keep the text pointer clearly visible inside the white section-editor modal. */
+.reze-section-modal .reze-section-modal-body,
+.reze-section-modal .reze-section-modal-body * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M7 4h10M12 4v16M7 20h10' fill='none' stroke='%23fff' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M7 4h10M12 4v16M7 20h10' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, text !important;
+  caret-color: #000 !important;
+}
+.reze-section-modal .reze-modal-heading-input {
+  caret-color: #000 !important;
+  cursor: text !important;
+}
+.reze-section-modal .reze-modal-heading-input::selection,
+.reze-section-modal .reze-section-modal-body ::selection {
+  background: rgba(155,116,218,.3);
+  color: #17121f;
+}
 .reze-section-modal-body ::selection{background:rgba(155,116,218,.28);color:#17121f}
 .reze-section-modal-body p{margin:5px 0}
 .reze-section-modal-body ul,.reze-section-modal-body ol{padding-left:22px}
