@@ -630,3 +630,52 @@ body.reze-section-modal-open{overflow:hidden}
 .reze-section-modal-body .reze-modal-entry-group{margin:8px 0;padding:8px;border:1px solid #e5d9f2;border-radius:7px;background:#fff}
 .reze-section-modal-body .reze-modal-entry-group:focus-within{border-color:#a77bd1;background:#fdfbff}
 .reze-section-modal-body .reze-modal-entry-group .item-head{display:flex;justify-content:space-between;gap:12px;font-weight:700}
+
+/* Modal toolbar contrast repair: keep every control legible against REZE's aubergine UI. */
+.reze-section-modal .reze-modal-toolbar {
+  background: #2b2336 !important;
+  border-top-color: #51415f !important;
+  border-bottom-color: #51415f !important;
+}
+.reze-section-modal .reze-modal-toolbar button {
+  appearance: none !important;
+  background: #211a2d !important;
+  color: #f5efff !important;
+  border: 1px solid #725b88 !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.22) !important;
+  font: 600 12px/1.2 inherit !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+}
+.reze-section-modal .reze-modal-toolbar button b,
+.reze-section-modal .reze-modal-toolbar button i,
+.reze-section-modal .reze-modal-toolbar button u {
+  color: #f5efff !important;
+  opacity: 1 !important;
+}
+.reze-section-modal .reze-modal-toolbar button:hover,
+.reze-section-modal .reze-modal-toolbar button:focus-visible {
+  background: #62447c !important;
+  color: #fff !important;
+  border-color: #c49be8 !important;
+  outline: 2px solid rgba(196,155,232,.35) !important;
+  outline-offset: 1px !important;
+}
+.reze-section-modal .reze-modal-toolbar button:active {
+  background: #78539a !important;
+  transform: translateY(1px);
+}
+.reze-section-modal .reze-modal-toolbar button.danger {
+  background: #3a202c !important;
+  color: #ffb8c2 !important;
+  border-color: #9b5367 !important;
+}
+.reze-section-modal .reze-modal-toolbar button.danger:hover,
+.reze-section-modal .reze-modal-toolbar button.danger:focus-visible {
+  background: #6d293d !important;
+  color: #fff !important;
+  border-color: #e58ca1 !important;
+}
+.reze-section-modal .reze-modal-toolbar-divider {
+  border-left-color: #806a91 !important;
+}
