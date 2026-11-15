@@ -28,7 +28,123 @@ document.addEventListener('click',e=>{const r=e.target.closest('[data-remove]');
 $('#addExperience').onclick=()=>add('experience');$('#addEducation').onclick=()=>add('education');$('#addExtra').onclick=()=>add('extras');$('#saveBtn').onclick=()=>{readFields();persist();};$('#clearBtn').onclick=()=>{if(confirm('Clear the current resume? This does not delete exported files.')){data=blank();fillFields();renderAll();persist();}};$('#accent').oninput=e=>{data.accent=e.target.value;queueSave();};
 $('#themeToggle').onclick=()=>{document.body.classList.toggle('light');$('#appearance').value=document.body.classList.contains('light')?'light':'dark';};$('#appearance').onchange=e=>document.body.classList.toggle('light',e.target.value==='light');$('#cursorSize').oninput=e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px');
 $('#exportPdf').onclick=$('#printBtn').onclick=()=>{renderPreview();window.print();};
-$('#importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.name.toLowerCase().endsWith('.json')){importJSON(JSON.parse(await f.text()));}else if(f.name.toLowerCase().endsWith('.txt')){data.summary=await f.text();fillFields();renderAll();queueSave();alert('Text imported into the summary field. Please organise it into the correct sections.');}else if(f.name.toLowerCase().endsWith('.docx')||f.name.toLowerCase().endsWith('.pdf')){alert('This lightweight JavaScript build does not yet parse PDF/DOCX files. Export or copy the resume text as .txt or JSON, or paste it into the editor. Your original file has not been changed.');}else alert('Please select a JSON or TXT resume file.');}catch(err){alert('Could not import this file: '+err.message);}e.target.value='';};
+
+// PDF/DOCX text extraction. The original uploaded file is read only and never overwritten.
+async function loadScriptOnce(src, test) {
+  if (test()) return;
+  await new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=src; script.async=true;
+    script.onload=resolve; script.onerror=()=>reject(new Error('Could not load document parser from the CDN. Check your internet connection and try again.'));
+    document.head.appendChild(script);
+  });
+  if (!test()) throw new Error('The document parser loaded but did not initialise.');
+}
+async function extractDocxText(file) {
+  await loadScriptOnce('https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js',()=>!!window.mammoth);
+  const buffer=await file.arrayBuffer();
+  const result=await window.mammoth.extractRawText({arrayBuffer:buffer});
+  return clean(result.value).replace(/\r/g,'');
+}
+async function extractPdfText(file) {
+  const pdfjs=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  const pdf=await pdfjs.getDocument({data:bytes}).promise;
+  const pages=[];
+  for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
+    const page=await pdf.getPage(pageNo);
+    const content=await page.getTextContent();
+    let line='', lines=[];
+    for(const item of content.items){
+      if(!item.str) continue;
+      const text=item.str.trim();
+      if(!text) continue;
+      if(line && item.hasEOL) { lines.push(line); line=''; }
+      else if(line && item.transform && item.transform[5]!==undefined && Math.abs(item.transform[5]-(page._rezeLastY??item.transform[5]))>3) { lines.push(line); line=''; }
+      line+=(line?' ':'')+text;
+      if(item.transform) page._rezeLastY=item.transform[5];
+    }
+    if(line) lines.push(line);
+    pages.push(lines.join('\n'));
+  }
+  return clean(pages.join('\n\n'));
+}
+function parseResumeText(raw) {
+  const text=String(raw||'').replace(/\u00a0/g,' ').replace(/\r/g,'').replace(/[ \t]+/g,' ').trim();
+  const lines=text.split('\n').map(x=>x.trim()).filter(Boolean);
+  const parsed=blank();
+  const email=text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const phone=text.match(/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d[\d\s().-]{7,}\d/);
+  if(email) parsed.email=email[0];
+  if(phone) parsed.phone=phone[0].replace(/\s+/g,' ').trim();
+  const headings={
+    summary:/^(professional\s+summary|summary|profile|career\s+objective|objective)$/i,
+    experience:/^(professional\s+experience|work\s+experience|employment\s+history|experience|work\s+history)$/i,
+    education:/^(education|academic\s+background|qualifications)$/i,
+    skills:/^(core\s+competencies|technical\s+skills|skills|key\s+skills|areas\s+of\s+expertise)$/i,
+    extras:/^(certifications?|licenses?|projects?|personal\s+projects|achievements?|awards?)$/i
+  };
+  const sections={intro:[]}, current=['intro'];
+  let active='intro';
+  for(const line of lines){
+    const key=Object.keys(headings).find(k=>headings[k].test(line.replace(/[:：]$/,'')));
+    if(key){active=key;sections[active]??=[];continue;}
+    sections[active]??=[]; sections[active].push(line);
+  }
+  const intro=sections.intro||[];
+  const nonContact=intro.filter(l=>!l.includes(parsed.email||'§EMAIL§')&&!l.includes(parsed.phone||'§PHONE§'));
+  if(nonContact.length){
+    parsed.name=nonContact[0].length<70?nonContact[0]:'';
+    if(nonContact.length>1 && nonContact[1].length<100) parsed.title=nonContact[1];
+  }
+  const summary=(sections.summary||[]).join(' ').trim();
+  parsed.summary=summary || (intro.slice(parsed.name?1:0, parsed.title?2:1).filter(l=>l.length>45).join(' '));
+  parsed.skills=(sections.skills||[]).join(', ').replace(/^[•·-]\s*/gm,'').trim();
+  const toEntries=(arr,type)=>{
+    const blocks=arr.join('\n').split(/\n\s*\n/).map(b=>b.split('\n').map(x=>x.trim()).filter(Boolean)).filter(b=>b.length);
+    return blocks.map(b=>{
+      const first=b[0].replace(/^[•·-]\s*/,'');
+      const dateLine=b.find(x=>/\b(19|20)\d{2}\b/.test(x))||'';
+      const dates=dateLine.match(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\.?\s*(?:19|20)\d{2}\s*(?:[-–—to]+\s*(?:Present|Current|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\.?\s*(?:19|20)\d{2}))?/i);
+      const body=b.filter(x=>x!==dateLine && x!==first);
+      return {role:first,company:body.shift()||'',start:dates?dates[0].split(/[-–—to]+/i)[0].trim():'',end:dates?(dates[0].split(/[-–—to]+/i)[1]||'').trim():'',details:body.join('\n').replace(/^[•·]\s*/gm,'')};
+    }).filter(x=>x.role);
+  };
+  parsed.experience=toEntries(sections.experience||[],'experience');
+  parsed.education=toEntries(sections.education||[],'education');
+  const extraLines=sections.extras||[];
+  if(extraLines.length){
+    let group='Certification';
+    parsed.extras=extraLines.map(line=>{
+      if(/project/i.test(line)) group='Project';
+      if(/certification|certified|license/i.test(line)) group='Certification';
+      return {type:group,name:line.replace(/^[•·-]\s*/,''),details:''};
+    });
+  }
+  // Keep any content the heuristic could not confidently classify visible instead of discarding it.
+  if(!parsed.summary && !parsed.experience.length && !parsed.education.length && !parsed.skills){
+    parsed.summary=text;
+  }
+  return parsed;
+}
+async function importDocument(file, extension) {
+  const saveState=$('#saveState');
+  saveState.textContent='Reading document…';
+  const extracted=extension==='pdf'?await extractPdfText(file):await extractDocxText(file);
+  if(!extracted || extracted.length<20) throw new Error('No readable text was found. The file may be scanned/image-only or protected. Try an OCR-enabled PDF or a text-based DOCX.');
+  const parsed=parseResumeText(extracted);
+  const hasStructured=!!(parsed.name||parsed.email||parsed.summary||parsed.skills||parsed.experience.length||parsed.education.length||parsed.extras.length);
+  if(!hasStructured) parsed.summary=extracted;
+  const confirmImport=confirm(`Extracted ${extracted.length.toLocaleString()} characters from ${file.name}.\n\nREZE will map recognisable sections into your resume fields. Please review the result because PDF/DOCX layouts and section headings vary.\n\nImport this content into the current draft? Your original file will not be modified.`);
+  if(!confirmImport){saveState.textContent='Import cancelled';return;}
+  data={...blank(),...parsed,template:data.template||'modern',accent:data.accent||'#b77bec'};
+  fillFields();renderAll();queueSave();switchView('editor');
+  alert(`Imported text from ${file.name}.\n\nPlease review every section and correct any fields that were mapped imperfectly. The original file was left unchanged.`);
+  saveState.textContent='✓ Imported locally';
+}
+
+$('#importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const name=f.name.toLowerCase();if(name.endsWith('.json')){importJSON(JSON.parse(await f.text()));}else if(name.endsWith('.txt')){data.summary=await f.text();fillFields();renderAll();queueSave();alert('Text imported into the summary field. Please organise it into the correct sections.');}else if(name.endsWith('.docx')){await importDocument(f,'docx');}else if(name.endsWith('.pdf')){await importDocument(f,'pdf');}else alert('Please select a JSON, TXT, PDF or DOCX resume file.');}catch(err){console.error('REZE import error:',err);alert('Could not import this file: '+err.message+'\n\nYour original file has not been changed.');$('#saveState').textContent='Import failed';}e.target.value='';};
 $('#runMatch').onclick=()=>{readFields();const jd=clean($('#jobDescription').value).toLowerCase();if(!jd){$('#matchResults').innerHTML='<p class="hint">Paste a job description first.</p>';return;}const terms=[...new Set((clean(data.skills)+' '+clean(data.summary)+' '+data.experience.map(x=>x.role+' '+x.details).join(' ')).toLowerCase().match(/[a-z][a-z0-9+#.-]{2,}/g)||[])];const matched=terms.filter(t=>jd.includes(t));const missing=[...new Set((jd.match(/[a-z][a-z0-9+#.-]{3,}/g)||[]))].filter(t=>!terms.includes(t)).filter(t=>!['with','that','this','from','your','will','have','work','team','years','role','able','and','the','for','are','our','you'].includes(t)).slice(0,24);const pct=Math.round(matched.length/Math.max(terms.length,1)*100);$('#matchResults').innerHTML=`<div class="score-row"><div class="score">${pct}%</div><div><b>Keyword overlap</b><small>Simple text comparison, not semantic scoring.</small></div></div><h3>Matched terms</h3>${matched.map(x=>`<span class="match-tag">${escapeHTML(x)}</span>`).join('')||'<p>None found yet.</p>'}<h3>Terms to review</h3>${missing.map(x=>`<span class="match-tag">${escapeHTML(x)}</span>`).join('')}<p class="hint">Only include missing terms if they accurately describe your skills and experience.</p>`;};
 function improve(text,concise){let s=clean(text).replace(/^[-•]\s*/, '').replace(/\s+/g,' ');if(concise)return s.replace(/\b(responsible for|worked on|in order to|helped to)\b/gi,'').replace(/\s+/g,' ').trim();if(!s)return '';if(!/^(Built|Led|Developed|Implemented|Analysed|Analyzed|Managed|Tested|Identified|Designed|Automated|Improved|Delivered|Created|Conducted)\b/i.test(s))s='Implemented '+s.charAt(0).toLowerCase()+s.slice(1);if(!/[.!]$/.test(s))s+='.';return s;}
 $('#rewriteBullet').onclick=()=>$('#assistantOutput').value=improve($('#assistantInput').value,false);$('#makeConcise').onclick=()=>$('#assistantOutput').value=improve($('#assistantInput').value,true);$('#useSuggestion').onclick=()=>{const s=clean($('#assistantOutput').value);if(s){const old=clean(data.summary);data.summary=old?old+'\n'+s:s;fillFields();queueSave();}};

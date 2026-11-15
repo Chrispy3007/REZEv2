@@ -18,10 +18,10 @@ Upload the contents of this folder to the repository root. Keep the existing `.g
 - Browser-local autosave and multiple local resume versions
 - ATS completeness checks and keyword comparison against a job description
 - Local writing helpers
-- JSON and TXT import; JSON export; browser print / Save as PDF
+- JSON, TXT, text-based PDF and DOCX text extraction; JSON export; browser print / Save as PDF
 - Liquid-glass visual system, ambient lighting, responsive layout and light/dark themes
 - Anime-inspired Reze-style brand artwork included as `reze-logo.png`
 
 ## Privacy and limitations
 
-Resume content is stored in browser local storage. No account or server is used. PDF/DOCX parsing and faithful editing of arbitrary existing PDF/DOCX layouts are not included in this browser-only build. The logo artwork is an original anime-inspired illustration, not official Chainsaw Man artwork.
+Resume content is stored in browser local storage. No account or server is used. PDF/DOCX import extracts readable text into resume fields using PDF.js and Mammoth loaded from public CDNs. Scanned/image-only PDFs need OCR, and complex layouts may need manual correction. This is text extraction, not faithful editing of the original PDF/DOCX layout; the uploaded original is never overwritten. The logo artwork is an original anime-inspired illustration, not official Chainsaw Man artwork.
