@@ -83,3 +83,14 @@ Parsing is heuristic: resume layouts vary widely. Review the imported fields and
 - The editor's right panel uses scaled A4/Letter sheet thumbnails with an overflow scroll area and page count.
 - The separate Page Preview displays full-size pages, zoom and page count.
 - The custom-section editor panel and custom-section navigation entries are removed from the interface. Previously saved custom-section data is retained in stored resume records and is not deleted.
+
+
+## Pagination and preview layout repair
+- Rebuilt the page flow to move a section heading together with the first content block when a page break is required.
+- Normalized cloned content to the printable page's inner width, including wrapping for long names, subtitles, paragraphs and experience/date rows.
+- Added word-boundary splitting for paragraphs and unusually long bullet items so a single oversized block cannot silently overflow a sheet.
+- Kept the editor mini-page stack and full Page Preview generated from the same page set.
+- Added Letter page dimensions and refreshed asset cache keys so browsers fetch the updated preview engine and styles.
+- Fixed print layout positioning so the page stack is printed as separate sheets instead of screen-positioned overlays.
+
+The pagination was exercised in Chromium with long summaries and multi-page experience lists. A4 screen pagination and A4 PDF output were checked against the generated page count.
