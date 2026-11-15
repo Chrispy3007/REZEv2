@@ -25,3 +25,12 @@ Upload the contents of this folder to the repository root. Keep the existing `.g
 ## Privacy and limitations
 
 Resume content is stored in browser local storage. No account or server is used. PDF/DOCX import extracts readable text into resume fields using PDF.js and Mammoth loaded from public CDNs. Scanned/image-only PDFs need OCR, and complex layouts may need manual correction. This is text extraction, not faithful editing of the original PDF/DOCX layout; the uploaded original is never overwritten. The logo artwork is an original anime-inspired illustration, not official Chainsaw Man artwork.
+
+## Document library and editing notes (vNext)
+- Uploaded originals are stored as separate IndexedDB records with unique IDs; multiple files are retained and listed after refresh.
+- Original files are never overwritten by editing. Select a file in the Upload library to download its original or export the current working resume in that file's format.
+- The working resume content remains in browser localStorage. Original files remain in this browser's IndexedDB; clearing site data or using another browser/device will not carry them over.
+- PDF extraction uses PDF.js and DOCX extraction uses Mammoth from a CDN. Scanned/image-only PDFs require OCR and are not automatically OCR'd.
+- PDF/DOCX imports extract text and map common resume headings heuristically. Review the fields after import; complex multi-column layouts and unusual headings may need manual correction.
+- Edited PDF/DOCX exports are rebuilt from the editable fields using the selected template. They retain the file extension/format, not the source document's exact layout or formatting.
+- Templates include Modern, Classic, Minimal, Executive, Technical, Compact and Creative, with a live scaled preview.
