@@ -563,3 +563,20 @@ body.light #view-preview .resume-section-card { background: #fff; border-color: 
   #view-preview .resume-section-edit-action { display: none !important; }
 }
 #view-editor .editor-mini-page .resume-section-edit-action { display:none !important; }
+
+/* Force a visible black text I-beam over the white Page Preview while editing.
+   The native text cursor can inherit a white OS/theme cursor; use a small custom
+   SVG cursor and keep the insertion caret explicitly black as well. */
+body.reze-page-inline-editing #view-preview #previewPages .preview-page-content,
+body.reze-page-inline-editing #view-preview #previewPages .preview-page-content * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M7 4h10M12 4v16M7 20h10' fill='none' stroke='%23fff' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M7 4h10M12 4v16M7 20h10' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") 12 12, text !important;
+  caret-color: #000 !important;
+}
+body.reze-page-inline-editing #view-preview #previewPages .resume-section-edit-action,
+body.reze-page-inline-editing #view-preview #previewPages .resume-section-edit-action * {
+  cursor: pointer !important;
+}
+#view-preview #previewPages .resume-section-card-body[contenteditable="true"],
+#view-preview #previewPages .resume-section-card-body[contenteditable="true"] * {
+  caret-color: #000 !important;
+}
