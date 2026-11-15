@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = (selector, root = document) => root.querySelector(selector);
-  const state = { zoom: 1, liveZoom: 1, size: 'A4', pages: [], fitScale: 1, refreshQueued: false, editing: false, editSaveTimer: null };
+  const state = { zoom: 1, liveZoom: 1, size: 'A4', pages: [], fitScale: 1, refreshQueued: false, editing: false, editSaveTimer: null, modalCard: null, modalSelection: null };
   const dimensions = () => state.size === 'Letter' ? { width: 816, height: 1056 } : { width: 794, height: 1123 };
   let measureRoot;
 
@@ -447,6 +447,177 @@
     }
   }
 
+  function ensureSectionModal() {
+    let modal = $('#rezeSectionEditorModal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'rezeSectionEditorModal';
+    modal.className = 'reze-section-modal';
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="reze-section-modal-backdrop" data-modal-close></div>
+      <section class="reze-section-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="rezeSectionModalTitle">
+        <header class="reze-section-modal-header"><div><span class="eyebrow">PAGE PREVIEW EDITOR</span><h2 id="rezeSectionModalTitle">Edit section</h2><p>Edit this section without leaving Page Preview.</p></div><button type="button" class="reze-modal-close" aria-label="Close" data-modal-close>×</button></header>
+        <label class="reze-modal-label" for="rezeSectionModalHeading">Section heading</label>
+        <input id="rezeSectionModalHeading" class="reze-modal-heading-input" type="text" maxlength="90">
+        <div class="reze-modal-toolbar" aria-label="Section formatting">
+          <button type="button" data-modal-command="bold" title="Bold"><b>B</b></button>
+          <button type="button" data-modal-command="italic" title="Italic"><i>I</i></button>
+          <button type="button" data-modal-command="underline" title="Underline"><u>U</u></button>
+          <button type="button" data-modal-command="insertUnorderedList" title="Bulleted list">• List</button>
+          <button type="button" data-modal-command="insertOrderedList" title="Numbered list">1. List</button>
+          <button type="button" data-modal-command="undo" title="Undo">↶</button>
+          <button type="button" data-modal-command="redo" title="Redo">↷</button>
+          <span class="reze-modal-toolbar-divider"></span>
+          <button type="button" data-modal-action="add-entry" title="Add another entry">＋ Entry</button>
+          <button type="button" data-modal-action="add-paragraph" title="Add text block">＋ Text</button>
+          <button type="button" data-modal-action="add-bullet" title="Add bullet">＋ Bullet</button>
+          <button type="button" data-modal-action="move-up" title="Move selected block up">↑</button>
+          <button type="button" data-modal-action="move-down" title="Move selected block down">↓</button>
+          <button type="button" data-modal-action="delete-block" class="danger" title="Delete selected block">Delete block</button>
+        </div>
+        <div id="rezeSectionModalBody" class="reze-section-modal-body" contenteditable="true" spellcheck="true" aria-label="Section content"></div>
+        <footer class="reze-section-modal-footer"><span class="reze-modal-help">Select a paragraph or bullet to move or delete it. Changes update the page layout when saved.</span><div><button type="button" class="btn secondary" data-modal-close>Cancel</button><button type="button" class="btn primary" id="rezeSectionModalSave">Save changes</button></div></footer>
+      </section>`;
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function openSectionModal(card) {
+    if (!card) return;
+    const modal = ensureSectionModal();
+    const title = card.querySelector('.resume-section-card-title');
+    const body = card.querySelector('.resume-section-card-body');
+    if (!body) return;
+    state.modalCard = card;
+    $('#rezeSectionModalTitle').textContent = `Edit ${title?.textContent.trim() || 'section'}`;
+    $('#rezeSectionModalHeading').value = title?.textContent.trim().replace(/\s*[·•]\s*continued$/i, '') || '';
+    $('#rezeSectionModalHeading').disabled = card.dataset.continuation === 'true';
+    $('#rezeSectionModalBody').innerHTML = body.innerHTML;
+    wrapModalEntries($('#rezeSectionModalBody'));
+    modal.hidden = false;
+    document.body.classList.add('reze-section-modal-open');
+    $('#rezeSectionModalBody').focus();
+  }
+
+  function wrapModalEntries(editor) {
+    const children = [...editor.children];
+    let group = null;
+    children.forEach(node => {
+      if (node.matches('.item-head')) {
+        group = document.createElement('div');
+        group.className = 'reze-modal-entry-group';
+        node.before(group);
+        group.appendChild(node);
+      } else if (group) group.appendChild(node);
+    });
+  }
+
+  function unwrapModalEntries(editor) {
+    editor.querySelectorAll('.reze-modal-entry-group').forEach(group => {
+      group.replaceWith(...group.childNodes);
+    });
+  }
+
+  function selectedEditableBlock(editor) {
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) return null;
+    let node = selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement;
+    const listItem = node?.closest?.('li');
+    if (listItem && editor.contains(listItem)) return listItem;
+    while (node && node.parentElement !== editor) node = node.parentElement;
+    return node && node !== editor ? node : null;
+  }
+
+  function insertModalBlock(tag, text) {
+    const editor = $('#rezeSectionModalBody');
+    const node = document.createElement(tag);
+    if (text) node.textContent = text;
+    else node.innerHTML = '<br>';
+    const selection = window.getSelection();
+    const block = selectedEditableBlock(editor);
+    if (block?.tagName === 'LI') block.closest('ul,ol')?.after(node);
+    else if (block?.parentNode) block.after(node); else editor.appendChild(node);
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    selection.removeAllRanges(); selection.addRange(range);
+    editor.focus();
+  }
+
+  function insertModalEntry() {
+    const editor = $('#rezeSectionModalBody');
+    const group = document.createElement('div');
+    group.className = 'reze-modal-entry-group';
+    group.innerHTML = '<div class="item-head"><span>New entry</span><span></span></div><p>Enter details here</p><ul><li>New responsibility or detail</li></ul>';
+    editor.appendChild(group);
+    const range = document.createRange();
+    range.selectNodeContents(group.querySelector('.item-head span'));
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges(); selection.addRange(range);
+    editor.focus();
+  }
+
+  function closeSectionModal(save) {
+    const modal = $('#rezeSectionEditorModal');
+    if (!modal || modal.hidden) return;
+    if (save && state.modalCard?.isConnected) {
+      const title = state.modalCard.querySelector('.resume-section-card-title');
+      const body = state.modalCard.querySelector('.resume-section-card-body');
+      const headingValue = $('#rezeSectionModalHeading').value.trim();
+      if (title && state.modalCard.dataset.continuation !== 'true') title.textContent = headingValue || 'Untitled section';
+      if (body) {
+        const editor = $('#rezeSectionModalBody');
+        unwrapModalEntries(editor);
+        body.innerHTML = editor.innerHTML;
+      }
+      const html = currentPageHTML();
+      window.REZECore?.setPreviewOverride?.(html);
+      const source = $('#resumePreviewLarge');
+      if (source) source.innerHTML = html;
+      state.modalCard = null;
+      modal.hidden = true;
+      document.body.classList.remove('reze-section-modal-open');
+      refresh();
+      return;
+    }
+    state.modalCard = null;
+    modal.hidden = true;
+    document.body.classList.remove('reze-section-modal-open');
+  }
+
+  function bindSectionModal() {
+    const modal = ensureSectionModal();
+    modal.addEventListener('mousedown', event => {
+      if (event.target.closest('[data-modal-command],[data-modal-action]')) event.preventDefault();
+    });
+    modal.addEventListener('click', event => {
+      if (event.target.closest('[data-modal-close]')) closeSectionModal(false);
+      const command = event.target.closest('[data-modal-command]')?.dataset.modalCommand;
+      if (command) { document.execCommand(command, false, null); return; }
+      const action = event.target.closest('[data-modal-action]')?.dataset.modalAction;
+      if (!action) return;
+      const editor = $('#rezeSectionModalBody');
+      editor.focus();
+      const block = selectedEditableBlock(editor);
+      if (action === 'add-entry') insertModalEntry();
+      if (action === 'add-paragraph') insertModalBlock('p', '');
+      if (action === 'add-bullet') {
+        let list = block?.closest('ul,ol');
+        if (!list || !editor.contains(list)) { list = document.createElement('ul'); if (block?.parentNode) block.after(list); else editor.appendChild(list); }
+        const item = document.createElement('li'); item.innerHTML = '<br>'; list.appendChild(item);
+        const range = document.createRange(); range.selectNodeContents(item); range.collapse(false);
+        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      }
+      if (action === 'delete-block' && block) { block.remove(); }
+      if (action === 'move-up' && block?.previousElementSibling) block.parentNode.insertBefore(block, block.previousElementSibling);
+      if (action === 'move-down' && block?.nextElementSibling) block.parentNode.insertBefore(block.nextElementSibling, block);
+    });
+    $('#rezeSectionModalSave').addEventListener('click', () => closeSectionModal(true));
+    modal.addEventListener('keydown', event => { if (event.key === 'Escape') closeSectionModal(false); if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') closeSectionModal(true); });
+  }
+
   function bindInlineEditing() {
     $('#togglePreviewEdit')?.addEventListener('click', () => setEditing(!state.editing));
     $('#finishPreviewEdit')?.addEventListener('click', () => setEditing(false));
@@ -461,10 +632,9 @@
     $('#previewPages')?.addEventListener('click', event => {
       const editButton = event.target.closest('.resume-section-edit-action');
       if (!editButton) return;
-      const card = editButton.closest('.resume-section-card');
-      if (!state.editing) setEditing(true, card?.querySelector('.resume-section-card-body'));
-      const body = card?.querySelector('.resume-section-card-body');
-      body?.focus?.({ preventScroll: true });
+      event.preventDefault();
+      event.stopPropagation();
+      openSectionModal(editButton.closest('.resume-section-card'));
     });
     $('#previewPages')?.addEventListener('input', event => {
       if (!state.editing || !event.target.closest('.preview-page-content')) return;
@@ -474,6 +644,7 @@
   }
 
   function bind() {
+    bindSectionModal();
     bindInlineEditing();
     $('#largeZoomOut')?.addEventListener('click', () => { state.zoom = Math.max(.5, Math.round((state.zoom - .1) * 100) / 100); applyZoom(); });
     $('#largeZoomIn')?.addEventListener('click', () => { state.zoom = Math.min(1.5, Math.round((state.zoom + .1) * 100) / 100); applyZoom(); });

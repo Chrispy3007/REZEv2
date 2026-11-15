@@ -580,3 +580,38 @@ body.reze-page-inline-editing #view-preview #previewPages .resume-section-edit-a
 #view-preview #previewPages .resume-section-card-body[contenteditable="true"] * {
   caret-color: #000 !important;
 }
+
+
+/* Section-specific modal editor for Page Preview pencil actions. */
+.reze-section-modal[hidden]{display:none!important}
+.reze-section-modal{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:22px}
+.reze-section-modal-backdrop{position:absolute;inset:0;background:rgba(12,8,20,.68);backdrop-filter:blur(7px)}
+.reze-section-modal-dialog{position:relative;z-index:1;width:min(900px,96vw);max-height:min(88vh,900px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(193,157,235,.38);border-radius:18px;background:var(--panel,#fff);color:var(--text,#28232e);box-shadow:0 24px 90px rgba(0,0,0,.38)}
+.reze-section-modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px 14px;border-bottom:1px solid rgba(145,119,170,.2)}
+.reze-section-modal-header .eyebrow{font-size:10px;letter-spacing:1.2px;color:var(--muted);font-weight:800}
+.reze-section-modal-header h2{margin:4px 0;font-size:20px}
+.reze-section-modal-header p{margin:0;color:var(--muted);font-size:12px}
+.reze-modal-close{width:34px;height:34px;border:1px solid rgba(145,119,170,.25);border-radius:9px;background:transparent;color:inherit;font-size:22px;cursor:pointer}
+.reze-modal-label{margin:14px 22px 5px;font-size:11px;font-weight:700;color:var(--muted)}
+.reze-modal-heading-input{margin:0 22px 12px;width:calc(100% - 44px);box-sizing:border-box;padding:10px 12px;border:1px solid rgba(145,119,170,.3);border-radius:9px;background:var(--surface,#fff);color:var(--text,#28232e);font-family:inherit;font-size:14px;font-weight:600}
+.reze-modal-heading-input:disabled{opacity:.65}
+.reze-modal-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 22px;border-top:1px solid rgba(145,119,170,.16);border-bottom:1px solid rgba(145,119,170,.2);background:rgba(155,116,218,.055)}
+.reze-modal-toolbar button{min-height:32px;padding:5px 9px;border:1px solid rgba(145,119,170,.25);border-radius:7px;background:var(--surface,#fff);color:var(--text,#28232e);font-size:12px;cursor:pointer}
+.reze-modal-toolbar button:hover{border-color:#a77bd1;background:rgba(155,116,218,.12)}
+.reze-modal-toolbar button.danger{color:#b42336}
+.reze-modal-toolbar-divider{height:22px;border-left:1px solid rgba(145,119,170,.28);margin:0 3px}
+.reze-section-modal-body{margin:16px 22px;min-height:220px;max-height:48vh;overflow:auto;padding:16px;border:1px solid #b99bda;border-radius:10px;background:#fff;color:#28232e;font:13px/1.55 Arial,sans-serif;outline:none;caret-color:#000;cursor:text}
+.reze-section-modal-body:focus{border-color:#8d62c1;box-shadow:0 0 0 3px rgba(155,116,218,.12)}
+.reze-section-modal-body *{caret-color:#000!important;cursor:text!important}
+.reze-section-modal-body ::selection{background:rgba(155,116,218,.28);color:#17121f}
+.reze-section-modal-body p{margin:5px 0}
+.reze-section-modal-body ul,.reze-section-modal-body ol{padding-left:22px}
+.reze-section-modal-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 22px 18px;border-top:1px solid rgba(145,119,170,.18)}
+.reze-modal-help{max-width:55%;font-size:11px;line-height:1.4;color:var(--muted)}
+.reze-section-modal-footer>div{display:flex;gap:8px}
+body.reze-section-modal-open{overflow:hidden}
+@media(max-width:640px){.reze-section-modal{padding:8px}.reze-section-modal-dialog{width:100%;max-height:94vh}.reze-section-modal-header{padding:15px}.reze-modal-label{margin-left:15px}.reze-modal-heading-input{margin-left:15px;width:calc(100% - 30px)}.reze-modal-toolbar{padding:8px 15px}.reze-section-modal-body{margin:12px 15px;max-height:48vh}.reze-section-modal-footer{padding:10px 15px 14px;align-items:flex-end}.reze-modal-help{max-width:45%}}
+
+.reze-section-modal-body .reze-modal-entry-group{margin:8px 0;padding:8px;border:1px solid #e5d9f2;border-radius:7px;background:#fff}
+.reze-section-modal-body .reze-modal-entry-group:focus-within{border-color:#a77bd1;background:#fdfbff}
+.reze-section-modal-body .reze-modal-entry-group .item-head{display:flex;justify-content:space-between;gap:12px;font-weight:700}
