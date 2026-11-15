@@ -241,7 +241,7 @@ body.light .custom-rich-editor{background:#fff;color:#2b2334}
 .page-count-pill{padding:8px 12px;border:1px solid rgba(193,157,235,.28);border-radius:999px;background:rgba(177,132,224,.12);color:var(--accent2);font-size:11px;font-weight:750;white-space:nowrap}
 .page-preview-stage{padding:24px 16px 34px;border:1px solid rgba(224,200,255,.12);border-radius:20px;background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(0,0,0,.12));overflow:auto;min-height:420px}
 .preview-pages{display:flex;flex-direction:column;align-items:center;gap:26px;transform:scale(var(--preview-zoom,1));transform-origin:top center}
-.preview-page{position:relative;flex:0 0 auto;box-sizing:border-box;width:794px;height:1123px;min-height:1123px;max-width:none;margin:0;background:#fff!important;color:#28232e!important;padding:58px 64px 68px!important;overflow:hidden;box-shadow:0 14px 42px rgba(0,0,0,.32);transform:none!important;border-radius:2px!important;font-family:Arial,sans-serif}
+.preview-page{position:relative;flex:0 0 auto;box-sizing:border-box;width:794px;height:1123px;min-height:1123px;max-width:none;margin:0;background:#fff!important;color:#28232e!important;padding:58px 64px 68px!important;overflow:hidden;box-shadow:0 14px 42px rgba(0,0,0,.32);border-radius:2px!important;font-family:Arial,sans-serif}
 .preview-page-content{height:100%;overflow:hidden;box-sizing:border-box;overflow-wrap:anywhere}
 .preview-page-content h2{font-size:25px;line-height:1.1;margin:0;color:#28232e}
 .preview-page-content .resume-title{font-size:11px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-top:6px}

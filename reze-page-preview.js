@@ -280,8 +280,8 @@
       frame.style.height = `${height * scale}px`;
       const page = frame.firstElementChild;
       if (page) {
-        page.style.transform = `scale(${scale})`;
-        page.style.transformOrigin = 'top left';
+        page.style.setProperty('transform', `scale(${scale})`, 'important');
+        page.style.setProperty('transform-origin', 'top left', 'important');
       }
     });
     const zoom = $('#largeZoomValue');
@@ -292,8 +292,8 @@
       frame.style.width = '270px';
       frame.style.height = `${height * miniScale}px`;
       if (page) {
-        page.style.transform = `scale(${miniScale})`;
-        page.style.transformOrigin = 'top left';
+        page.style.setProperty('transform', `scale(${miniScale})`, 'important');
+        page.style.setProperty('transform-origin', 'top left', 'important');
       }
     });
   }
