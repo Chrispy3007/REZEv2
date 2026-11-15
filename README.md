@@ -1,4 +1,4 @@
-# REZE — Liquid Glass Resume Studio
+# REZE v2 — Premium Resume Builder
 
 A premium, browser-only resume editor built with vanilla HTML, CSS and JavaScript.
 
@@ -34,3 +34,22 @@ Resume content is stored in browser local storage. No account or server is used.
 - PDF/DOCX imports extract text and map common resume headings heuristically. Review the fields after import; complex multi-column layouts and unusual headings may need manual correction.
 - Edited PDF/DOCX exports are rebuilt from the editable fields using the selected template. They retain the file extension/format, not the source document's exact layout or formatting.
 - Templates include Modern, Classic, Minimal, Executive, Technical, Compact and Creative, with a live scaled preview.
+
+
+## REZE v2 implementation status
+
+This release is the first integrated v2 foundation:
+- Dashboard is the landing screen, with recent resume cards and template discovery.
+- My Resumes supports multiple named drafts, search, sorting, open, rename, duplicate and delete.
+- New resumes start blank and are stored independently in this browser.
+- The existing upload workspace remains available; uploaded originals are stored separately from editable working content.
+- Resume editor autosave now waits for one second of inactivity before saving.
+
+### Next implementation stages
+1. Expand the editor into the full section-based workspace, including custom sections, richer editing, drag-and-drop ordering and consistent document data.
+2. Add continuous and paginated A4 preview modes with robust page-break behavior.
+3. Consolidate undo/redo, recovery, independent document versions and template-safe rendering.
+4. Test PDF/DOCX import and export with real sample files and document fidelity limitations.
+
+## Browser storage
+Resume drafts are stored in localStorage and original uploads in IndexedDB. These records are local to this browser and device. Export backups before clearing site data or changing browsers.
