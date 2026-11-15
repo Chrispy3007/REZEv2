@@ -25,6 +25,17 @@
  const overflows=c=>c.scrollHeight>c.clientHeight+1;
  function copyAttrs(from,to){[...from.attributes].forEach(a=>to.setAttribute(a.name,a.value));}
  function collectNodes(source){return [...source.childNodes].filter(n=>n.nodeType===1||(n.nodeType===3&&n.textContent.trim()));}
+ function cleanClone(node){
+  const copy=node.cloneNode(true);
+  const all=[copy,...copy.querySelectorAll('*')];
+  all.forEach(el=>{
+   el.style.removeProperty('width');el.style.removeProperty('min-width');el.style.removeProperty('max-width');
+   el.style.removeProperty('white-space');el.style.removeProperty('position');el.style.removeProperty('left');
+   el.style.removeProperty('right');el.style.removeProperty('transform');el.style.removeProperty('float');
+   el.removeAttribute('contenteditable');
+  });
+  return copy;
+ }
  function appendList(original,current,pages,heading){
   let list=document.createElement(original.tagName.toLowerCase());copyAttrs(original,list);current.content.appendChild(list);
   for(const li of [...original.children]){
@@ -41,43 +52,56 @@
  function paginate(){
   const source=$('#resumePreviewLarge'),host=$('#previewPages');if(!source||!host||!document.body)return;
   const root=ensureMeasureRoot();root.style.width=dims().w+'px';root.replaceChildren();
-  const pages=[];let current=makePage();pages.push(current);let pendingHeading=null;
-  for(const original of collectNodes(source)){
-   if(isHeading(original)){
-    const heading=original.cloneNode(true);current.content.appendChild(heading);
-    if(overflows(current.content)){
-     current.content.removeChild(heading);current=makePage();pages.push(current);current.content.appendChild(heading);
-    }
-    pendingHeading=heading;continue;
-   }
-   if(original.nodeType===1&&(original.tagName==='UL'||original.tagName==='OL')){
-    current=appendList(original,current,pages,pendingHeading);pendingHeading=null;continue;
-   }
-   const node=original.cloneNode(true);current.content.appendChild(node);
+  const pages=[];let current=makePage(),pendingHeading=null;
+  pages.push(current);
+  const nextPage=()=>{current=makePage();pages.push(current);};
+  const addBlock=(node)=>{
+   const clone=cleanClone(node);
+   const heading=pendingHeading?cleanClone(pendingHeading):null;
+   if(heading)current.content.appendChild(heading);
+   current.content.appendChild(clone);
    if(overflows(current.content)){
-    current.content.removeChild(node);
-    // Move a section heading with the first block that follows it.
-    if(pendingHeading&&pendingHeading.parentNode===current.content)current.content.removeChild(pendingHeading);
-    if(hasContent(current)){current=makePage();pages.push(current);}
-    if(pendingHeading)current.content.appendChild(pendingHeading.cloneNode(true));
-    current.content.appendChild(node);
-    pendingHeading=null;
-   }else if(node.nodeType===1&&!isHeading(node))pendingHeading=null;
+    clone.remove();if(heading)heading.remove();
+    if(hasContent(current))nextPage();
+    if(heading)current.content.appendChild(heading);
+    current.content.appendChild(clone);
+    // Oversized single blocks are allowed to continue visually rather than being clipped.
+    if(overflows(current.content)){
+     clone.style.maxWidth='100%';clone.style.whiteSpace='normal';clone.style.overflowWrap='anywhere';
+    }
+   }
+   pendingHeading=null;
+  };
+  for(const original of collectNodes(source)){
+   if(isHeading(original)){pendingHeading=original;continue;}
+   if(original.nodeType===1&&(original.tagName==='UL'||original.tagName==='OL')){
+    const heading=pendingHeading?cleanClone(pendingHeading):null;
+    if(heading)current.content.appendChild(heading);
+    let list=document.createElement(original.tagName.toLowerCase());copyAttrs(original,list);current.content.appendChild(list);
+    for(const originalItem of [...original.children]){
+     const item=cleanClone(originalItem);list.appendChild(item);
+     if(overflows(current.content)){
+      item.remove();
+      if(!list.children.length)list.remove();
+      nextPage();
+      if(heading)current.content.appendChild(heading.cloneNode(true));
+      list=document.createElement(original.tagName.toLowerCase());copyAttrs(original,list);current.content.appendChild(list);list.appendChild(item);
+     }
+    }
+    pendingHeading=null;continue;
+   }
+   addBlock(original);
   }
-  while(pages.length>1&&!hasContent(pages[pages.length-1])){pages.pop();}
-  // Move completed sheets out of the hidden measurement root into the visible stack.
-  pages.forEach((p,i)=>{
-   const footer=document.createElement('div');footer.className='preview-page-number';footer.textContent=`${i+1} / ${pages.length}`;p.page.appendChild(footer);
-  });
+  if(pendingHeading){
+   const heading=cleanClone(pendingHeading);current.content.appendChild(heading);
+   if(overflows(current.content)){heading.remove();nextPage();current.content.appendChild(heading);}
+  }
+  while(pages.length>1&&!hasContent(pages[pages.length-1]))pages.pop();
+  pages.forEach((p,i)=>{const footer=document.createElement('div');footer.className='preview-page-number';footer.textContent=`${i+1} / ${pages.length}`;p.page.appendChild(footer);});
   host.replaceChildren(...pages.map(p=>{const frame=document.createElement('div');frame.className='preview-page-frame';frame.appendChild(p.page);return frame;}));
   const miniHost=$('#editorPreviewPages');
-  if(miniHost){
-   const fragment=document.createDocumentFragment();
-   pages.forEach(p=>{const shell=document.createElement('div');shell.className='editor-mini-page-shell';const frame=document.createElement('div');frame.className='editor-mini-page-frame';const mini=p.page.cloneNode(true);mini.classList.add('editor-mini-page');frame.appendChild(mini);shell.appendChild(frame);fragment.appendChild(shell);});
-   const label=document.createElement('div');label.className='editor-mini-page-count';label.textContent=`${pages.length} ${pages.length===1?'page':'pages'}`;fragment.appendChild(label);miniHost.replaceChildren(fragment);
-  }
-  state.pages=pages;const count=$('#pageCountLabel');if(count)count.textContent=`${pages.length} ${pages.length===1?'page':'pages'} · ${state.size}`;
-  applyZoom();
+  if(miniHost){const fragment=document.createDocumentFragment();pages.forEach(p=>{const shell=document.createElement('div');shell.className='editor-mini-page-shell';const frame=document.createElement('div');frame.className='editor-mini-page-frame';const mini=p.page.cloneNode(true);mini.classList.add('editor-mini-page');frame.appendChild(mini);shell.appendChild(frame);fragment.appendChild(shell);});const label=document.createElement('div');label.className='editor-mini-page-count';label.textContent=`${pages.length} ${pages.length===1?'page':'pages'}`;fragment.appendChild(label);miniHost.replaceChildren(fragment);}
+  state.pages=pages;const count=$('#pageCountLabel');if(count)count.textContent=`${pages.length} ${pages.length===1?'page':'pages'} · ${state.size}`;applyZoom();
  }
  function applyZoom(){
   const host=$('#previewPages'),stage=$('.page-preview-stage');if(!host||!stage)return;
