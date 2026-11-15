@@ -32,16 +32,8 @@
     });
   }
 
-  // Theme persistence without changing the resume data model.
-  const themeKey = 'reze-liquid-theme-v1';
-  const applyTheme = theme => {
-    document.body.classList.toggle('light', theme === 'light');
-    const select = document.querySelector('#appearance'); if (select) select.value = theme;
-    try { localStorage.setItem(themeKey, theme); } catch {}
-  };
-  try { const saved = localStorage.getItem(themeKey); if (saved) applyTheme(saved); } catch {}
-  document.querySelector('#themeToggle')?.addEventListener('click', () => applyTheme(document.body.classList.contains('light') ? 'dark' : 'light'));
-  document.querySelector('#appearance')?.addEventListener('change', e => applyTheme(e.target.value));
+  // Theme state is managed centrally by app.js. Keeping this visual layer
+  // free of theme listeners prevents a single click from toggling twice.
 
   // Logo gives a subtle visual response without making the app feel busy.
   const logo = document.querySelector('.brand-mark');

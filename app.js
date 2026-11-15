@@ -27,10 +27,21 @@ document.addEventListener('input',e=>{const el=e.target;if(el.matches('[data-fie
 document.addEventListener('click',e=>{const r=e.target.closest('[data-remove]');if(r){data[r.dataset.remove].splice(+r.dataset.index,1);r.dataset.remove==='extras'?renderExtras():renderEntryList(r.dataset.remove);queueSave();}const t=e.target.closest('[data-template]');if(t){data.template=t.dataset.template;$$('[data-template]').forEach(x=>x.classList.toggle('selected',x===t));renderPreview();queueSave();}});
 $('#addExperience').onclick=()=>add('experience');$('#addEducation').onclick=()=>add('education');$('#addExtra').onclick=()=>add('extras');$('#saveBtn').onclick=()=>{readFields();persist();};$('#clearBtn').onclick=()=>{if(confirm('Clear the current resume? This does not delete exported files.')){data=blank();fillFields();renderAll();persist();}};$('#accent').oninput=e=>{data.accent=e.target.value;queueSave();};
 const THEME_KEY='reze-theme-v1';
-function setTheme(theme){const light=theme==='light';document.body.classList.toggle('light',light);document.documentElement.dataset.theme=light?'light':'dark';$('#appearance').value=light?'light':'dark';$('#themeToggle').textContent=light?'☾':'☼';$('#themeToggle').setAttribute('aria-label',light?'Switch to dark mode':'Switch to light mode');try{localStorage.setItem(THEME_KEY,light?'light':'dark')}catch{}}
-setTheme(localStorage.getItem(THEME_KEY)||'dark');
-$('#themeToggle').onclick=()=>setTheme(document.body.classList.contains('light')?'dark':'light');
-$('#appearance').onchange=e=>setTheme(e.target.value);$('#cursorSize').oninput=e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px');
+function setTheme(theme){
+  const light=theme==='light';
+  document.body.classList.toggle('light',light);
+  document.documentElement.dataset.theme=light?'light':'dark';
+  const appearance=$('#appearance'),toggle=$('#themeToggle');
+  if(appearance) appearance.value=light?'light':'dark';
+  if(toggle){toggle.textContent=light?'☾':'☼';toggle.setAttribute('aria-label',light?'Switch to dark mode':'Switch to light mode');toggle.title=light?'Switch to dark mode':'Switch to light mode';}
+  try{localStorage.setItem(THEME_KEY,light?'light':'dark')}catch{}
+}
+let initialTheme='dark';
+try{initialTheme=localStorage.getItem(THEME_KEY)||'dark'}catch{}
+setTheme(initialTheme);
+$('#themeToggle').addEventListener('click',()=>setTheme(document.body.classList.contains('light')?'dark':'light'));
+$('#appearance').addEventListener('change',e=>setTheme(e.target.value));
+$('#cursorSize').oninput=e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px');
 $('#exportPdf').onclick=$('#printBtn').onclick=()=>{renderPreview();window.print();};
 $('#previewEditToggle').onclick=()=>{const page=$('#resumePreviewLarge');const enabled=page.getAttribute('contenteditable')!=='true';page.setAttribute('contenteditable',enabled?'true':'false');page.classList.toggle('page-editing',enabled);$('#previewEditToggle').textContent=enabled?'Finish editing':'Edit page';if(enabled)page.focus();};
 $('#previewSaveEdit').onclick=()=>{const page=$('#resumePreviewLarge');if(page.getAttribute('contenteditable')==='true'){page.setAttribute('contenteditable','false');page.classList.remove('page-editing');$('#previewEditToggle').textContent='Edit page';}try{localStorage.setItem('reze-page-preview-html-v1',page.innerHTML);$('#saveState').textContent='✓ Page edits saved locally';}catch{alert('Could not save page edits.');}};
