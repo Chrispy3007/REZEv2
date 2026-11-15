@@ -36,12 +36,12 @@ function renderPreview(){
  }).join('');
  const html=`<header><h2>${escapeHTML(d.name||'Your Name')}</h2><div class="resume-title">${escapeHTML(d.title||'Professional Title')}</div><div class="contact">${[d.email,d.phone,d.location,d.links].filter(Boolean).map(escapeHTML).join(' &nbsp;·&nbsp; ')}</div></header>${sectionHtml}`;
  ['#resumePreview','#resumePreviewLarge','#templatePreview'].forEach(sel=>{const el=$(sel);if(el)el.innerHTML=html;});
- const savedPage=localStorage.getItem('reze-page-preview-html-v1');if(savedPage&&$('#resumePreviewLarge'))$('#resumePreviewLarge').innerHTML=savedPage;
+
  document.documentElement.style.setProperty('--accent',d.accent||'#b77bec');
  $$('.resume-paper').forEach(el=>{el.classList.toggle('classic',d.template==='classic');el.classList.toggle('minimal',d.template==='minimal');el.classList.toggle('executive',d.template==='executive');el.classList.toggle('technical',d.template==='technical');el.classList.toggle('compact',d.template==='compact');el.classList.toggle('creative',d.template==='creative');});
 }
 function updateATS(){const checks=[['Name',!!clean(data.name)],['Professional title',!!clean(data.title)],['Email address',/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)],['Phone or contact number',!!clean(data.phone)],['Location or profile link',!!clean(data.location)||!!clean(data.links)],['Professional summary',clean(data.summary).length>=60],['Experience details',data.experience.some(x=>clean(x.role)&&clean(x.details))],['Education',data.education.some(x=>clean(x.role)||clean(x.company))],['Skills',clean(data.skills).split(/[,\n]/).filter(clean).length>=4],['Action-oriented bullet points',data.experience.some(x=>/built|led|improved|reduced|managed|tested|developed|identified|implemented|created/i.test(x.details))],['Measurable outcomes',data.experience.some(x=>/\d+\s?(%|\+|users|hours|days|projects|systems)/i.test(x.details))],['Projects or certifications',data.extras.some(x=>clean(x.name))]];const n=checks.filter(x=>x[1]).length;$('#atsScore').textContent=Math.round(n/checks.length*100)+'%';$('#atsLabel').textContent=n>=10?'Strong content coverage':n>=7?'Good start — a few gaps remain':'Add more detail to improve completeness';$('#atsChecks').innerHTML=checks.map(([t,ok])=>`<div class="check ${ok?'':'missing'}"><span>${escapeHTML(t)}</span><em>${ok?'✓ Complete':'＋ Needs attention'}</em></div>`).join('');}
-function switchView(view){$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+view));$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));if(view==='preview')renderPreview();if(view==='ats')updateATS();if(view==='resumes')$('#savedResume').textContent=localStorage.getItem(KEY)?'A saved resume is available in this browser.':'No saved resume yet.';}
+function switchView(view){$$('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+view));$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));if(view==='preview'){renderPreview();window.REZEPagePreview?.refresh?.();}if(view==='ats')updateATS();if(view==='resumes')$('#savedResume').textContent=localStorage.getItem(KEY)?'A saved resume is available in this browser.':'No saved resume yet.';}
 function add(type){data[type].push(type==='extras'?{type:'',name:'',details:''}:{role:'',company:'',start:'',end:'',details:''});if(type==='extras')renderExtras();else renderEntryList(type);queueSave();}
 function exportJSON(){readFields();const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});download(blob,'reze-resume.json');}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -69,13 +69,9 @@ $('#themeToggle').addEventListener('click',()=>setTheme(document.body.classList.
 $('#appearance').addEventListener('change',e=>setTheme(e.target.value));
 $('#cursorSize').oninput=e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px');
 $('#exportPdf').onclick=$('#printBtn').onclick=()=>{renderPreview();window.print();};
-$('#previewEditToggle').onclick=()=>{const page=$('#resumePreviewLarge');const enabled=page.getAttribute('contenteditable')!=='true';page.setAttribute('contenteditable',enabled?'true':'false');page.classList.toggle('page-editing',enabled);$('#previewEditToggle').textContent=enabled?'Finish editing':'Edit page';if(enabled)page.focus();};
-$('#previewSaveEdit').onclick=()=>{const page=$('#resumePreviewLarge');if(page.getAttribute('contenteditable')==='true'){page.setAttribute('contenteditable','false');page.classList.remove('page-editing');$('#previewEditToggle').textContent='Edit page';}try{localStorage.setItem('reze-page-preview-html-v1',page.innerHTML);$('#saveState').textContent='✓ Page edits saved locally';}catch{alert('Could not save page edits.');}};
-$('#previewUndo').onclick=()=>document.execCommand('undo');
-$('#goEditor').onclick=()=>switchView('editor');
 $('#downloadOriginal').onclick=downloadOriginalFile;
 $('#downloadWorking').onclick=downloadWorkingCopy;
-$('#view-preview').addEventListener('click',e=>{const b=e.target.closest('[data-command]');if(b){document.execCommand(b.dataset.command,false,null);$('#resumePreviewLarge').focus();}});
+
 
 
 // PDF/DOCX text extraction. The original uploaded file is read only and never overwritten.
@@ -120,13 +116,17 @@ function parseResumeText(raw) {
   const email=text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   const phone=text.match(/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d[\d\s().-]{7,}\d/);
   if(email) parsed.email=email[0];
-  if(phone) parsed.phone=phone[0].replace(/\s+/g,' ').trim();
+  if(phone){const digits=phone[0].replace(/\D/g,'');if(digits.length>=7&&digits.length<=16)parsed.phone=phone[0].replace(/\s+/g,' ').trim();}
+  const locationMatch=text.match(/(?:location|based\s+in|address)\s*[:：-]\s*([^\n|]{2,70})/i);
+  if(locationMatch)parsed.location=locationMatch[1].trim();
+  const linkMatch=text.match(/(?:linkedin|portfolio|website|github)\s*[:：-]?\s*(https?:\/\/[^\s|]+|(?:www\.)?linkedin\.com\/[^\s|]+|(?:www\.)?github\.com\/[^\s|]+)/i);
+  if(linkMatch)parsed.links=linkMatch[1].replace(/^www\./,'https://www.');
   const headings={
-    summary:/^(professional\s+summary|summary|profile|career\s+objective|objective)$/i,
-    experience:/^(professional\s+experience|work\s+experience|employment\s+history|experience|work\s+history)$/i,
+    summary:/^(professional\s+summary|summary|profile|profile\s+summary|career\s+objective|objective|about\s+me)$/i,
+    experience:/^(professional\s+experience|work\s+experience|employment\s+history|experience|work\s+history|career\s+history)$/i,
     education:/^(education|academic\s+background|qualifications)$/i,
-    skills:/^(core\s+competencies|technical\s+skills|skills|key\s+skills|areas\s+of\s+expertise)$/i,
-    extras:/^(certifications?|licenses?|projects?|personal\s+projects|achievements?|awards?)$/i
+    skills:/^(core\s+competencies|technical\s+skills|skills|key\s+skills|areas\s+of\s+expertise|competencies|tools\s+and\s+technologies)$/i,
+    extras:/^(certifications?|licenses?|projects?|personal\s+projects|achievements?|awards?|professional\s+development|courses|training)$/i
   };
   const sections={intro:[]}, current=['intro'];
   let active='intro';
@@ -136,7 +136,7 @@ function parseResumeText(raw) {
     sections[active]??=[]; sections[active].push(line);
   }
   const intro=sections.intro||[];
-  const nonContact=intro.filter(l=>!l.includes(parsed.email||'§EMAIL§')&&!l.includes(parsed.phone||'§PHONE§'));
+  const nonContact=intro.filter(l=>!l.includes(parsed.email||'§EMAIL§')&&!l.includes(parsed.phone||'§PHONE§')&&!/^(location|address|linkedin|portfolio|website|github)\s*[:：-]/i.test(l));
   if(nonContact.length){
     parsed.name=nonContact[0].length<70?nonContact[0]:'';
     if(nonContact.length>1 && nonContact[1].length<100) parsed.title=nonContact[1];

@@ -65,3 +65,14 @@ Resume drafts are stored in localStorage and original uploads in IndexedDB. Thes
 - Custom sections and section configuration are stored with the active resume data.
 
 Note: Rich-text controls are currently implemented in custom sections. The standard structured fields remain plain text/structured inputs. Full document-wide formatting, A4/continuous modes, advanced pagination and full undo/redo are subsequent phases.
+
+
+## Phase 3 — Clean page preview and upload parsing
+- Removed the Upload/Import item from the left navigation; the dashboard Import action still opens the file picker.
+- Page Preview now displays a vertical stack of individual A4 pages with page numbering and a live page count.
+- Added A4 / Letter preview sizing and zoom controls.
+- Export PDF uses the paginated preview layout when printing.
+- Existing PDF/DOCX extraction and heuristic resume parser populate structured fields (name, title, contact details, summary, experience, education, skills, projects/certifications). Parser now recognizes additional heading variants and labeled location/profile links.
+- Original uploaded files remain stored separately and unchanged.
+
+Parsing is heuristic: resume layouts vary widely. Review the imported fields and correct any misclassified text. Scanned/image-only PDFs still need OCR. PDF export uses the browser print dialog and depends on its print settings.
