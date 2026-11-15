@@ -3,15 +3,6 @@
   'use strict';
   const $ = (s, r=document) => r.querySelector(s);
   const $$ = (s, r=document) => [...r.querySelectorAll(s)];
-  let zoom = 1;
-  const setZoom = (value, large=false) => {
-    zoom = Math.max(.65, Math.min(1.25, Math.round(value*100)/100));
-    const target = large ? '#resumePreviewLarge' : '#resumePreview';
-    const paper = $(target);
-    if (paper) paper.style.setProperty('--resume-scale', zoom);
-    const label = $(large ? '#largeZoomValue' : '#zoomValue');
-    if (label) label.textContent = `${Math.round(zoom*100)}%`;
-  };
   const updateProgress = () => {
     const checks = [
       !!$('[data-field="name"]')?.value.trim(), !!$('[data-field="title"]')?.value.trim(),
@@ -28,11 +19,6 @@
     if(value)value.textContent=`${pct}%`;
     if(bar)bar.style.width=`${pct}%`;
   };
-  $('#zoomOut')?.addEventListener('click',()=>setZoom(zoom-.05));
-  $('#zoomIn')?.addEventListener('click',()=>setZoom(zoom+.05));
-  $('#fitPreview')?.addEventListener('click',()=>setZoom(1));
-  $('#largeZoomOut')?.addEventListener('click',()=>setZoom(zoom-.05,true));
-  $('#largeZoomIn')?.addEventListener('click',()=>setZoom(zoom+.05,true));
   document.addEventListener('input',updateProgress);
   document.addEventListener('click',e=>{if(e.target.closest('#addExperience,#addEducation,#addExtra,[data-remove]'))setTimeout(updateProgress,0);});
   document.addEventListener('keydown',e=>{
@@ -41,7 +27,7 @@
   });
   const originalSwitch = window.switchView;
   // Keep section navigation and completion meter fresh after first render and dynamic additions.
-  window.addEventListener('load',()=>{updateProgress();setZoom(1);setZoom(1,true);});
+  window.addEventListener('load',updateProgress);
   const observer = new MutationObserver(updateProgress);
   ['#experienceList','#educationList','#extraList'].forEach(s=>{const el=$(s);if(el)observer.observe(el,{childList:true,subtree:true});});
 })();

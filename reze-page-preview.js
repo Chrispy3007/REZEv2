@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = (selector, root = document) => root.querySelector(selector);
-  const state = { zoom: 1, size: 'A4', pages: [], fitScale: 1, refreshQueued: false };
+  const state = { zoom: 1, liveZoom: 1, size: 'A4', pages: [], fitScale: 1, refreshQueued: false };
   const dimensions = () => state.size === 'Letter' ? { width: 816, height: 1056 } : { width: 794, height: 1123 };
   let measureRoot;
 
@@ -248,9 +248,16 @@
         const mini = page.page.cloneNode(true);
         mini.classList.add('editor-mini-page');
         frame.appendChild(mini);
-        const miniScale = 270 / dimensions().width;
-        shell.style.height = `${dimensions().height * miniScale}px`;
-        shell.style.flexBasis = `${dimensions().height * miniScale}px`;
+        const miniScale = (270 / dimensions().width) * state.liveZoom;
+        const miniWidth = dimensions().width * miniScale;
+        const miniHeight = dimensions().height * miniScale;
+        shell.style.width = `${miniWidth}px`;
+        shell.style.height = `${miniHeight}px`;
+        shell.style.flexBasis = `${miniHeight}px`;
+        frame.style.width = `${miniWidth}px`;
+        frame.style.height = `${miniHeight}px`;
+        mini.style.setProperty('transform', `scale(${miniScale})`, 'important');
+        mini.style.setProperty('transform-origin', 'top left', 'important');
         shell.appendChild(frame);
         fragment.appendChild(shell);
       });
@@ -286,16 +293,25 @@
     });
     const zoom = $('#largeZoomValue');
     if (zoom) zoom.textContent = `${Math.round(state.zoom * 100)}%`;
+    const miniScale = (270 / width) * state.liveZoom;
+    const miniWidth = width * miniScale;
+    const miniHeight = height * miniScale;
+    document.querySelectorAll('.editor-mini-page-shell').forEach(shell => {
+      shell.style.width = `${miniWidth}px`;
+      shell.style.height = `${miniHeight}px`;
+      shell.style.flexBasis = `${miniHeight}px`;
+    });
     document.querySelectorAll('.editor-mini-page-frame').forEach(frame => {
       const page = frame.firstElementChild;
-      const miniScale = 270 / width;
-      frame.style.width = '270px';
-      frame.style.height = `${height * miniScale}px`;
+      frame.style.width = `${miniWidth}px`;
+      frame.style.height = `${miniHeight}px`;
       if (page) {
         page.style.setProperty('transform', `scale(${miniScale})`, 'important');
         page.style.setProperty('transform-origin', 'top left', 'important');
       }
     });
+    const liveLabel = $('#zoomValue');
+    if (liveLabel) liveLabel.textContent = `${Math.round(state.liveZoom * 100)}%`;
   }
 
   const refresh = () => {
@@ -308,8 +324,12 @@
   };
 
   function bind() {
-    $('#largeZoomOut')?.addEventListener('click', () => { state.zoom = Math.max(.5, state.zoom - .1); applyZoom(); });
-    $('#largeZoomIn')?.addEventListener('click', () => { state.zoom = Math.min(1.5, state.zoom + .1); applyZoom(); });
+    $('#largeZoomOut')?.addEventListener('click', () => { state.zoom = Math.max(.5, Math.round((state.zoom - .1) * 100) / 100); applyZoom(); });
+    $('#largeZoomIn')?.addEventListener('click', () => { state.zoom = Math.min(1.5, Math.round((state.zoom + .1) * 100) / 100); applyZoom(); });
+    $('#zoomOut')?.addEventListener('click', () => { state.liveZoom = Math.max(.65, Math.round((state.liveZoom - .1) * 100) / 100); applyZoom(); });
+    $('#zoomIn')?.addEventListener('click', () => { state.liveZoom = Math.min(1.4, Math.round((state.liveZoom + .1) * 100) / 100); applyZoom(); });
+    $('#fitPreview')?.addEventListener('click', () => { state.liveZoom = 1; applyZoom(); });
+    $('#editFromPreview')?.addEventListener('click', () => document.querySelector('[data-view="editor"]')?.click());
     $('#previewPaperSize')?.addEventListener('change', event => {
       state.size = event.target.value;
       const other = $('#paperSize'); if (other) other.value = state.size;
