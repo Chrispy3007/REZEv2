@@ -45,7 +45,7 @@
   ensureModel();const d=get(),form=$('.form-card');if(!form)return;
   let rail=$('#sectionRail');
   if(!rail){rail=document.createElement('nav');rail.id='sectionRail';rail.className='section-rail';form.insertBefore(rail,form.children[1]||null);}
-  const ids=orderedIds();const hidden=new Set(d.hiddenSections||[]);
+  const ids=orderedIds().filter(id=>!id.startsWith('custom:'));const hidden=new Set(d.hiddenSections||[]);
   rail.innerHTML='<b>Sections · drag to reorder</b>'+ids.map(id=>{
    const custom=id.startsWith('custom:'),cid=custom?id.slice(7):null;
    const title=custom?(d.customSections.find(c=>c.id===cid)?.title||'Custom section'):labels[id]||id;
@@ -103,7 +103,7 @@
   });
  }
  function bind(){
-  $('#addCustomSection')?.addEventListener('click',()=>addCustom());
+  
   document.addEventListener('click',e=>{
    const jump=e.target.closest('[data-jump]');if(jump){const id=jump.dataset.jump;let target;if(id.startsWith('custom:'))target=$(`[data-custom-form="${CSS.escape(id.slice(7))}"]`);else target=$(`[data-section="${CSS.escape(id)}"]`);target?.scrollIntoView({behavior:'smooth',block:'start'});return;}
    const toggle=e.target.closest('[data-toggle-section]');if(toggle){setHidden(toggle.dataset.toggleSection);return;}

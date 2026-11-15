@@ -76,3 +76,10 @@ Note: Rich-text controls are currently implemented in custom sections. The stand
 - Original uploaded files remain stored separately and unchanged.
 
 Parsing is heuristic: resume layouts vary widely. Review the imported fields and correct any misclassified text. Scanned/image-only PDFs still need OCR. PDF export uses the browser print dialog and depends on its print settings.
+
+
+## Preview refinement
+- The same pagination engine now renders the page stack in both the editor's right-hand preview and the separate Page Preview workspace.
+- The editor's right panel uses scaled A4/Letter sheet thumbnails with an overflow scroll area and page count.
+- The separate Page Preview displays full-size pages, zoom and page count.
+- The custom-section editor panel and custom-section navigation entries are removed from the interface. Previously saved custom-section data is retained in stored resume records and is not deleted.

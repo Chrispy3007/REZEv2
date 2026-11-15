@@ -271,3 +271,18 @@ body.light .page-count-pill{background:#f0e7fa}
  #view-preview .preview-page-number{bottom:8mm!important;right:17mm!important}
  #view-editor,#view-dashboard,#view-upload,#view-templates,#view-ats,#view-match,#view-assistant,#view-resumes{display:none!important}
 }
+
+
+/* Preview parity: the editor's right rail and Page Preview use the same paginated pages. */
+#view-editor .preview-card{min-width:0;overflow:hidden}
+#view-editor .preview-card #resumePreview{display:none!important}
+#view-editor .editor-preview-pages{display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 6px 18px;max-height:calc(100vh - 190px);overflow:auto;overflow-x:hidden}
+#view-editor .editor-mini-page-shell{position:relative;width:270px;height:382px;flex:0 0 382px;overflow:hidden;display:flex;justify-content:center;background:#d8d2df;border-radius:3px;box-shadow:0 5px 18px rgba(0,0,0,.16)}
+#view-editor .editor-mini-page{position:absolute!important;top:0;left:50%;margin-left:-135px!important;box-shadow:0 2px 8px rgba(0,0,0,.18)!important;border-radius:1px!important}
+#view-editor .editor-mini-page-count{position:sticky;bottom:0;align-self:center;padding:6px 10px;border-radius:999px;background:rgba(28,20,40,.92);color:#fff;font-size:10px;z-index:2}
+#view-editor .preview-head{position:sticky;top:0;z-index:3;background:var(--panel);padding-bottom:10px}
+#view-editor .preview-tools{flex-wrap:wrap}
+body.light #view-editor .editor-mini-page-shell{background:#e7e0ed}
+@media(max-width:1050px){
+ #view-editor .editor-preview-pages{max-height:480px}
+}
