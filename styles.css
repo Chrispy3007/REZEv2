@@ -491,3 +491,75 @@ body[data-paper-size="Letter"] { page: letter; }
 body.reze-page-inline-editing #previewPages .preview-page{user-select:text}
 body.reze-page-inline-editing #previewPages .preview-page-content{cursor:text!important}
 body.reze-page-inline-editing #previewPages .preview-page-content *{cursor:text!important}
+
+/* Option 3: hybrid boxed resume sections + the existing inline formatting toolbar. */
+#view-preview .resume-section-card {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 9px 0 11px;
+  padding: 8px 10px 9px;
+  border: 1px solid #e5d9f2;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #fff 0%, #fdfbff 100%);
+  box-shadow: 0 1px 3px rgba(48, 31, 68, .055);
+  break-inside: avoid;
+}
+#view-preview .resume-section-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 22px;
+  margin: 0 0 6px;
+  padding: 0 0 5px;
+  border-bottom: 1px solid #e8def3;
+}
+#view-preview .resume-section-card-title {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  color: #30263a !important;
+  font-size: 10px !important;
+  line-height: 1.25 !important;
+  letter-spacing: .8px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+}
+#view-preview .resume-section-edit-action {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border: 1px solid #e5d8f4;
+  border-radius: 6px;
+  background: #f7f1fc;
+  color: #72508f;
+  font: 14px/1 Arial, sans-serif;
+  cursor: pointer !important;
+}
+#view-preview .resume-section-card-body { min-width: 0; outline: none; }
+#view-preview .resume-section-card-body[contenteditable="true"] {
+  min-height: 24px;
+  padding: 5px 6px;
+  border: 1px solid #b99bda;
+  border-radius: 5px;
+  background: #fff;
+  caret-color: #000 !important;
+  cursor: text !important;
+}
+#view-preview .resume-section-card-body[contenteditable="true"] * { caret-color: #000 !important; cursor: text !important; }
+#view-preview .resume-section-card-body[contenteditable="true"] ::selection { background: rgba(155,116,218,.28); color: #17121f; }
+#view-preview .resume-section-card[data-continuation="true"] .resume-section-card-head { margin-bottom: 4px; }
+#view-preview .resume-section-card[data-continuation="true"] .resume-section-card-title { color: #81718e !important; font-size: 8px !important; }
+#view-preview .preview-page-content.is-inline-editing { outline: 0 !important; }
+#view-preview .preview-page-content.is-inline-editing .resume-section-card { border-color: #cbb4e3; }
+#view-preview .preview-page-content.is-inline-editing .resume-section-edit-action { cursor: pointer !important; }
+body.light #view-preview .resume-section-card { background: #fff; border-color: #e2d7ed; }
+@media print {
+  #view-preview .resume-section-card { box-shadow: none !important; break-inside: avoid; border-color: #e5e0e9 !important; }
+  #view-preview .resume-section-edit-action { display: none !important; }
+}
+#view-editor .editor-mini-page .resume-section-edit-action { display:none !important; }

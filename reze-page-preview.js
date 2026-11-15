@@ -222,6 +222,7 @@
       const removed = pages.pop();
       removed.page.remove();
     }
+    decoratePageSections(pages);
     pages.forEach((page, index) => {
       page.page.dataset.pageIndex = String(index);
       const number = document.createElement('div');
@@ -324,10 +325,80 @@
     }));
   };
 
+  // The visible preview groups each resume category into an editable card. Flatten
+  // those presentation wrappers before persisting so the source resume stays semantic.
   function currentPageHTML() {
-    return [...document.querySelectorAll('#previewPages .preview-page-content')]
-      .map(node => node.innerHTML)
-      .join('');
+    const output = document.createElement('div');
+    document.querySelectorAll('#previewPages .preview-page-content').forEach(pageContent => {
+      [...pageContent.childNodes].forEach(node => {
+        if (node.nodeType === 1 && node.classList.contains('resume-section-card')) {
+          if (!node.hasAttribute('data-continuation')) {
+            const heading = node.querySelector('.resume-section-card-title');
+            if (heading) {
+              const h3 = document.createElement('h3');
+              h3.textContent = heading.textContent;
+              output.appendChild(h3);
+            }
+          }
+          const body = node.querySelector('.resume-section-card-body');
+          if (body) [...body.childNodes].forEach(child => output.appendChild(child.cloneNode(true)));
+        } else {
+          output.appendChild(node.cloneNode(true));
+        }
+      });
+    });
+    return output.innerHTML;
+  }
+
+  function decoratePageSections(pages) {
+    let currentSectionTitle = '';
+    pages.forEach(page => {
+      const content = page.content;
+      const originalNodes = [...content.childNodes];
+      const fragment = document.createDocumentFragment();
+      let card = null;
+      let body = null;
+      const makeCard = (title, continued = false) => {
+        card = document.createElement('section');
+        card.className = 'resume-section-card';
+        if (continued) card.dataset.continuation = 'true';
+        const head = document.createElement('div');
+        head.className = 'resume-section-card-head';
+        const label = document.createElement('h3');
+        label.className = 'resume-section-card-title';
+        label.textContent = title;
+        head.appendChild(label);
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'resume-section-edit-action';
+        edit.setAttribute('contenteditable', 'false');
+        edit.setAttribute('aria-label', `Edit ${title}`);
+        edit.title = `Edit ${title}`;
+        edit.textContent = '✎';
+        head.appendChild(edit);
+        card.appendChild(head);
+        body = document.createElement('div');
+        body.className = 'resume-section-card-body';
+        card.appendChild(body);
+        fragment.appendChild(card);
+      };
+      originalNodes.forEach(node => {
+        if (node.nodeType === 1 && node.tagName === 'H3') {
+          currentSectionTitle = node.textContent.trim();
+          makeCard(currentSectionTitle, false);
+          return;
+        }
+        if (node.nodeType === 1 && node.tagName === 'HEADER') {
+          fragment.appendChild(node);
+          card = null;
+          body = null;
+          return;
+        }
+        if (!card) makeCard(currentSectionTitle ? `${currentSectionTitle} · continued` : 'Resume details', true);
+        body.appendChild(node);
+      });
+      content.replaceChildren(fragment);
+    });
   }
 
   function persistInlineEdit() {
@@ -335,7 +406,7 @@
     window.REZECore?.setPreviewOverride?.(currentPageHTML());
   }
 
-  function setEditing(enabled) {
+  function setEditing(enabled, focusTarget = null) {
     state.editing = !!enabled;
     const pages = document.querySelectorAll('#previewPages .preview-page-content');
     pages.forEach(content => {
@@ -344,10 +415,13 @@
         content.setAttribute('spellcheck', 'true');
         content.setAttribute('aria-label', 'Edit resume page content');
         content.classList.add('is-inline-editing');
+      content.querySelectorAll('.resume-section-card-body').forEach(body => body.setAttribute('contenteditable', 'true'));
+      content.querySelectorAll('.resume-section-edit-action').forEach(button => button.setAttribute('contenteditable', 'false'));
       } else {
         content.removeAttribute('contenteditable');
         content.removeAttribute('aria-label');
         content.classList.remove('is-inline-editing');
+        content.querySelectorAll('.resume-section-card-body').forEach(body => body.removeAttribute('contenteditable'));
       }
     });
     document.body.classList.toggle('reze-page-inline-editing', state.editing);
@@ -361,8 +435,8 @@
     }
     if (tools) tools.hidden = !state.editing;
     if (state.editing) {
-      const first = document.querySelector('#previewPages .preview-page-content');
-      first?.focus({ preventScroll: true });
+      const target = focusTarget || document.querySelector('#previewPages .preview-page-content');
+      target?.focus?.({ preventScroll: true });
     } else {
       clearTimeout(state.editSaveTimer);
       const html = currentPageHTML();
@@ -383,6 +457,14 @@
         document.execCommand(command, false, null);
         persistInlineEdit();
       });
+    });
+    $('#previewPages')?.addEventListener('click', event => {
+      const editButton = event.target.closest('.resume-section-edit-action');
+      if (!editButton) return;
+      const card = editButton.closest('.resume-section-card');
+      if (!state.editing) setEditing(true, card?.querySelector('.resume-section-card-body'));
+      const body = card?.querySelector('.resume-section-card-body');
+      body?.focus?.({ preventScroll: true });
     });
     $('#previewPages')?.addEventListener('input', event => {
       if (!state.editing || !event.target.closest('.preview-page-content')) return;
