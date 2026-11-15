@@ -483,24 +483,43 @@
     return modal;
   }
 
-  const modalHistory = { stack: [], index: -1, restoring: false };
+  const modalHistory = { stack: [], index: -1, restoring: false, pending: false, timer: 0 };
+
+  function modalHistorySnapshot() {
+    const editor = $('#rezeSectionModalBody');
+    const heading = $('#rezeSectionModalHeading');
+    return { html: editor?.innerHTML || '', heading: heading?.value || '' };
+  }
 
   function resetModalHistory(editor) {
-    modalHistory.stack = [editor.innerHTML];
+    modalHistory.stack = [{ html: editor.innerHTML, heading: $('#rezeSectionModalHeading')?.value || '' }];
     modalHistory.index = 0;
+    modalHistory.pending = false;
     updateModalHistoryButtons();
   }
 
   function recordModalHistory() {
-    const editor = $('#rezeSectionModalBody');
-    if (!editor || modalHistory.restoring) return;
-    const html = editor.innerHTML;
-    if (modalHistory.stack[modalHistory.index] === html) return;
+    if (modalHistory.restoring) return;
+    const snapshot = modalHistorySnapshot();
+    const current = modalHistory.stack[modalHistory.index];
+    if (current && current.html === snapshot.html && current.heading === snapshot.heading) return;
     modalHistory.stack = modalHistory.stack.slice(0, modalHistory.index + 1);
-    modalHistory.stack.push(html);
+    modalHistory.stack.push(snapshot);
     if (modalHistory.stack.length > 100) modalHistory.stack.shift();
     modalHistory.index = modalHistory.stack.length - 1;
     updateModalHistoryButtons();
+  }
+
+  function scheduleModalHistory() {
+    if (modalHistory.restoring) return;
+    // Contenteditable mutations can be committed after the toolbar click/input
+    // handler. A short task delay captures the final DOM, even in background tabs.
+    window.clearTimeout(modalHistory.timer);
+    modalHistory.pending = true;
+    modalHistory.timer = window.setTimeout(() => {
+      modalHistory.pending = false;
+      recordModalHistory();
+    }, 0);
   }
 
   function updateModalHistoryButtons() {
@@ -515,9 +534,14 @@
     const next = modalHistory.index + (direction === 'undo' ? -1 : 1);
     if (next < 0 || next >= modalHistory.stack.length) return;
     const editor = $('#rezeSectionModalBody');
+    window.clearTimeout(modalHistory.timer);
+    modalHistory.pending = false;
     modalHistory.restoring = true;
     modalHistory.index = next;
-    editor.innerHTML = modalHistory.stack[next];
+    const snapshot = modalHistory.stack[next];
+    editor.innerHTML = snapshot.html;
+    const heading = $('#rezeSectionModalHeading');
+    if (heading) heading.value = snapshot.heading;
     editor.focus();
     const range = document.createRange();
     range.selectNodeContents(editor);
@@ -636,6 +660,7 @@
   function bindSectionModal() {
     const modal = ensureSectionModal();
     modal.addEventListener('mousedown', event => {
+      // Keep the current text selection/caret when a toolbar button is pressed.
       if (event.target.closest('[data-modal-command],[data-modal-action]')) event.preventDefault();
     });
     modal.addEventListener('click', event => {
@@ -646,7 +671,8 @@
         const editor = $('#rezeSectionModalBody');
         editor.focus();
         document.execCommand(command, false, null);
-        recordModalHistory();
+        // execCommand may dispatch input asynchronously in Chromium.
+        scheduleModalHistory();
         return;
       }
       const action = event.target.closest('[data-modal-action]')?.dataset.modalAction;
@@ -666,11 +692,29 @@
       if (action === 'delete-block' && block) { block.remove(); }
       if (action === 'move-up' && block?.previousElementSibling) block.parentNode.insertBefore(block, block.previousElementSibling);
       if (action === 'move-down' && block?.nextElementSibling) block.parentNode.insertBefore(block.nextElementSibling, block);
+      // Structural actions are synchronous, so capture their resulting DOM now.
       recordModalHistory();
     });
-    $('#rezeSectionModalBody').addEventListener('input', recordModalHistory);
+    const editor = $('#rezeSectionModalBody');
+    editor.addEventListener('beforeinput', scheduleModalHistory);
+    editor.addEventListener('input', recordModalHistory);
+    editor.addEventListener('keyup', scheduleModalHistory);
+    editor.addEventListener('compositionend', scheduleModalHistory);
+    editor.addEventListener('paste', scheduleModalHistory);
+    editor.addEventListener('cut', scheduleModalHistory);
+    editor.addEventListener('drop', scheduleModalHistory);
+    $('#rezeSectionModalHeading').addEventListener('input', recordModalHistory);
     $('#rezeSectionModalSave').addEventListener('click', () => closeSectionModal(true));
-    modal.addEventListener('keydown', event => { if (event.key === 'Escape') closeSectionModal(false); if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') closeSectionModal(true); });
+    modal.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z') {
+        event.preventDefault(); restoreModalHistory(event.shiftKey ? 'redo' : 'undo'); return;
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'y') {
+        event.preventDefault(); restoreModalHistory('redo'); return;
+      }
+      if (event.key === 'Escape') closeSectionModal(false);
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') closeSectionModal(true);
+    });
   }
 
   function bindInlineEditing() {
