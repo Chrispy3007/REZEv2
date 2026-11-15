@@ -286,3 +286,8 @@ body.light #view-editor .editor-mini-page-shell{background:#e7e0ed}
 @media(max-width:1050px){
  #view-editor .editor-preview-pages{max-height:480px}
 }
+
+/* Heading + description skill rows: match the inline bold-heading resume reference. */
+.resume-paper .skills-groups p{display:block;margin:3px 0;font-size:10px;line-height:1.5;color:var(--ink);break-inside:avoid;}
+.resume-paper .skills-groups strong{font-weight:700;}
+.skill-group-entry label+label{margin-top:10px;}
