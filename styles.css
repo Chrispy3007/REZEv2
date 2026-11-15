@@ -148,3 +148,51 @@ body.light .resume-card-actions button{color:#71677d}
 @media(max-width:1150px){.resume-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:850px){.dashboard-welcome,.library-header{align-items:flex-start;flex-direction:column}.dashboard-stat-row{grid-template-columns:repeat(2,minmax(0,1fr))}.resume-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-template-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.dashboard-stat-row{grid-template-columns:1fr}.resume-card-grid{grid-template-columns:1fr}.resume-thumb{height:220px}.library-toolbar{flex-direction:column}.library-toolbar select{width:100%}.dashboard-actions{width:100%}.dashboard-actions button{flex:1}}
+
+/* Keep implementation-only native file controls out of the visible UI. */
+[hidden], input[type="file"][hidden] { display: none !important; }
+
+
+/* REZE editor layout correction — prevent section tabs covering fields.
+   The editor now participates in normal page scrolling instead of creating a
+   nested scroll region inside the glass card. */
+#view-editor .editor-layout{align-items:start;min-height:0}
+#view-editor .form-card{
+  max-height:none !important;
+  height:auto !important;
+  overflow:visible !important;
+  overscroll-behavior:auto;
+  scrollbar-gutter:auto;
+}
+#view-editor .section-rail{
+  position:relative !important;
+  top:auto !important;
+  z-index:1;
+  display:grid;
+  margin:18px 0 22px !important;
+  padding:12px !important;
+  border:1px solid rgba(220,190,255,.16) !important;
+  border-radius:14px;
+  background:rgba(32,23,47,.98) !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  box-shadow:0 8px 22px rgba(0,0,0,.16);
+}
+#view-editor .section-rail button{min-height:40px;white-space:normal;line-height:1.3}
+#view-editor .form-section,
+#view-editor .field-grid{scroll-margin-top:18px}
+#view-editor .form-section{padding-top:22px;margin-top:22px}
+#view-editor .field-grid{row-gap:16px;margin-bottom:22px}
+#view-editor .entry{margin:14px 0;padding-bottom:16px}
+#view-editor .entry-grid{row-gap:14px}
+#view-editor .preview-card{top:94px}
+body.light #view-editor .section-rail{
+  background:rgba(249,245,253,.99) !important;
+  border-color:rgba(106,76,130,.2) !important;
+  box-shadow:0 8px 22px rgba(56,36,72,.08);
+}
+@media(max-width:780px){
+  #view-editor .form-card{max-height:none !important;overflow:visible !important}
+  #view-editor .section-rail{position:relative !important;top:auto !important;grid-template-columns:repeat(2,minmax(0,1fr));}
+  #view-editor .preview-card{position:relative;top:auto}
+}
