@@ -53,3 +53,15 @@ This release is the first integrated v2 foundation:
 
 ## Browser storage
 Resume drafts are stored in localStorage and original uploads in IndexedDB. These records are local to this browser and device. Export backups before clearing site data or changing browsers.
+
+
+## Phase 2 — Editor workspace
+- Section navigation now includes visibility controls and drag-and-drop ordering.
+- The editor and resume preview use the same saved section order and visibility settings.
+- Added custom resume sections (publications, volunteer work, awards, training, languages, memberships, interests, references, and fully custom titles).
+- Custom section content supports basic rich text: bold, italic, underline, ordered and unordered lists.
+- Custom rich text is sanitized before rendering in the resume preview.
+- Existing structured personal information, summary, experience, education, skills, projects and certifications remain available.
+- Custom sections and section configuration are stored with the active resume data.
+
+Note: Rich-text controls are currently implemented in custom sections. The standard structured fields remain plain text/structured inputs. Full document-wide formatting, A4/continuous modes, advanced pagination and full undo/redo are subsequent phases.
