@@ -483,6 +483,51 @@
     return modal;
   }
 
+  const modalHistory = { stack: [], index: -1, restoring: false };
+
+  function resetModalHistory(editor) {
+    modalHistory.stack = [editor.innerHTML];
+    modalHistory.index = 0;
+    updateModalHistoryButtons();
+  }
+
+  function recordModalHistory() {
+    const editor = $('#rezeSectionModalBody');
+    if (!editor || modalHistory.restoring) return;
+    const html = editor.innerHTML;
+    if (modalHistory.stack[modalHistory.index] === html) return;
+    modalHistory.stack = modalHistory.stack.slice(0, modalHistory.index + 1);
+    modalHistory.stack.push(html);
+    if (modalHistory.stack.length > 100) modalHistory.stack.shift();
+    modalHistory.index = modalHistory.stack.length - 1;
+    updateModalHistoryButtons();
+  }
+
+  function updateModalHistoryButtons() {
+    const modal = $('#rezeSectionEditorModal');
+    const undo = modal?.querySelector('[data-modal-command="undo"]');
+    const redo = modal?.querySelector('[data-modal-command="redo"]');
+    if (undo) { undo.disabled = modalHistory.index <= 0; undo.setAttribute('aria-disabled', String(undo.disabled)); }
+    if (redo) { redo.disabled = modalHistory.index < 0 || modalHistory.index >= modalHistory.stack.length - 1; redo.setAttribute('aria-disabled', String(redo.disabled)); }
+  }
+
+  function restoreModalHistory(direction) {
+    const next = modalHistory.index + (direction === 'undo' ? -1 : 1);
+    if (next < 0 || next >= modalHistory.stack.length) return;
+    const editor = $('#rezeSectionModalBody');
+    modalHistory.restoring = true;
+    modalHistory.index = next;
+    editor.innerHTML = modalHistory.stack[next];
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges(); selection.addRange(range);
+    modalHistory.restoring = false;
+    updateModalHistoryButtons();
+  }
+
   function openSectionModal(card) {
     if (!card) return;
     const modal = ensureSectionModal();
@@ -495,6 +540,7 @@
     $('#rezeSectionModalHeading').disabled = card.dataset.continuation === 'true';
     $('#rezeSectionModalBody').innerHTML = body.innerHTML;
     wrapModalEntries($('#rezeSectionModalBody'));
+    resetModalHistory($('#rezeSectionModalBody'));
     modal.hidden = false;
     document.body.classList.add('reze-section-modal-open');
     $('#rezeSectionModalBody').focus();
@@ -595,7 +641,14 @@
     modal.addEventListener('click', event => {
       if (event.target.closest('[data-modal-close]')) closeSectionModal(false);
       const command = event.target.closest('[data-modal-command]')?.dataset.modalCommand;
-      if (command) { document.execCommand(command, false, null); return; }
+      if (command) {
+        if (command === 'undo' || command === 'redo') { restoreModalHistory(command); return; }
+        const editor = $('#rezeSectionModalBody');
+        editor.focus();
+        document.execCommand(command, false, null);
+        recordModalHistory();
+        return;
+      }
       const action = event.target.closest('[data-modal-action]')?.dataset.modalAction;
       if (!action) return;
       const editor = $('#rezeSectionModalBody');
@@ -613,7 +666,9 @@
       if (action === 'delete-block' && block) { block.remove(); }
       if (action === 'move-up' && block?.previousElementSibling) block.parentNode.insertBefore(block, block.previousElementSibling);
       if (action === 'move-down' && block?.nextElementSibling) block.parentNode.insertBefore(block.nextElementSibling, block);
+      recordModalHistory();
     });
+    $('#rezeSectionModalBody').addEventListener('input', recordModalHistory);
     $('#rezeSectionModalSave').addEventListener('click', () => closeSectionModal(true));
     modal.addEventListener('keydown', event => { if (event.key === 'Escape') closeSectionModal(false); if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') closeSectionModal(true); });
   }
