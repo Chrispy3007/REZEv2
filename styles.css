@@ -477,3 +477,17 @@ body[data-paper-size="Letter"] { page: letter; }
   margin-left:auto!important;
   margin-right:auto!important;
 }
+
+
+/* Inline editing directly on paginated resume sheets. */
+.preview-edit-tools{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 4px 14px;padding:9px 11px;border:1px solid rgba(193,157,235,.22);border-radius:13px;background:rgba(255,255,255,.045)}
+.preview-edit-tools[hidden]{display:none!important}
+.preview-edit-tools>button:not(.btn){min-width:34px;height:32px;border:1px solid rgba(193,157,235,.24);border-radius:8px;background:rgba(255,255,255,.07);color:var(--text);cursor:pointer}
+.preview-edit-hint{font-size:11px;color:var(--muted);margin-right:auto}
+.preview-page-content.is-inline-editing{outline:2px dashed #9a72d6;outline-offset:-5px;caret-color:#000!important;cursor:text!important;color:#28232e!important}
+.preview-page-content.is-inline-editing *{caret-color:#000!important;cursor:text!important}
+.preview-page-content.is-inline-editing :focus{outline:none}
+.preview-page-content.is-inline-editing ::selection{background:rgba(155,116,218,.28);color:#17121f}
+body.reze-page-inline-editing #previewPages .preview-page{user-select:text}
+body.reze-page-inline-editing #previewPages .preview-page-content{cursor:text!important}
+body.reze-page-inline-editing #previewPages .preview-page-content *{cursor:text!important}

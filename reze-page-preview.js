@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = (selector, root = document) => root.querySelector(selector);
-  const state = { zoom: 1, liveZoom: 1, size: 'A4', pages: [], fitScale: 1, refreshQueued: false };
+  const state = { zoom: 1, liveZoom: 1, size: 'A4', pages: [], fitScale: 1, refreshQueued: false, editing: false, editSaveTimer: null };
   const dimensions = () => state.size === 'Letter' ? { width: 816, height: 1056 } : { width: 794, height: 1123 };
   let measureRoot;
 
@@ -315,6 +315,7 @@
   }
 
   const refresh = () => {
+    if (state.editing) return;
     if (state.refreshQueued) return;
     state.refreshQueued = true;
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -323,13 +324,81 @@
     }));
   };
 
+  function currentPageHTML() {
+    return [...document.querySelectorAll('#previewPages .preview-page-content')]
+      .map(node => node.innerHTML)
+      .join('');
+  }
+
+  function persistInlineEdit() {
+    if (!state.editing) return;
+    window.REZECore?.setPreviewOverride?.(currentPageHTML());
+  }
+
+  function setEditing(enabled) {
+    state.editing = !!enabled;
+    const pages = document.querySelectorAll('#previewPages .preview-page-content');
+    pages.forEach(content => {
+      if (state.editing) {
+        content.setAttribute('contenteditable', 'true');
+        content.setAttribute('spellcheck', 'true');
+        content.setAttribute('aria-label', 'Edit resume page content');
+        content.classList.add('is-inline-editing');
+      } else {
+        content.removeAttribute('contenteditable');
+        content.removeAttribute('aria-label');
+        content.classList.remove('is-inline-editing');
+      }
+    });
+    document.body.classList.toggle('reze-page-inline-editing', state.editing);
+    const toggle = $('#togglePreviewEdit');
+    const tools = $('#previewEditTools');
+    if (toggle) {
+      toggle.setAttribute('aria-pressed', String(state.editing));
+      toggle.textContent = state.editing ? '✓ Editing on page' : '✎ Edit on page';
+      toggle.classList.toggle('primary', !state.editing);
+      toggle.classList.toggle('secondary', state.editing);
+    }
+    if (tools) tools.hidden = !state.editing;
+    if (state.editing) {
+      const first = document.querySelector('#previewPages .preview-page-content');
+      first?.focus({ preventScroll: true });
+    } else {
+      clearTimeout(state.editSaveTimer);
+      const html = currentPageHTML();
+      window.REZECore?.setPreviewOverride?.(html);
+      const source = $('#resumePreviewLarge');
+      if (source) source.innerHTML = html;
+      refresh();
+    }
+  }
+
+  function bindInlineEditing() {
+    $('#togglePreviewEdit')?.addEventListener('click', () => setEditing(!state.editing));
+    $('#finishPreviewEdit')?.addEventListener('click', () => setEditing(false));
+    $('#previewEditTools')?.querySelectorAll('[data-preview-command]').forEach(button => {
+      button.addEventListener('mousedown', event => event.preventDefault());
+      button.addEventListener('click', () => {
+        const command = button.dataset.previewCommand;
+        document.execCommand(command, false, null);
+        persistInlineEdit();
+      });
+    });
+    $('#previewPages')?.addEventListener('input', event => {
+      if (!state.editing || !event.target.closest('.preview-page-content')) return;
+      clearTimeout(state.editSaveTimer);
+      state.editSaveTimer = setTimeout(persistInlineEdit, 350);
+    });
+  }
+
   function bind() {
+    bindInlineEditing();
     $('#largeZoomOut')?.addEventListener('click', () => { state.zoom = Math.max(.5, Math.round((state.zoom - .1) * 100) / 100); applyZoom(); });
     $('#largeZoomIn')?.addEventListener('click', () => { state.zoom = Math.min(1.5, Math.round((state.zoom + .1) * 100) / 100); applyZoom(); });
     $('#zoomOut')?.addEventListener('click', () => { state.liveZoom = Math.max(.5, Math.round((state.liveZoom - .1) * 100) / 100); applyZoom(); });
     $('#zoomIn')?.addEventListener('click', () => { state.liveZoom = Math.min(3, Math.round((state.liveZoom + .1) * 100) / 100); applyZoom(); });
     $('#fitPreview')?.addEventListener('click', () => { state.liveZoom = 1; applyZoom(); });
-    $('#editFromPreview')?.addEventListener('click', () => document.querySelector('[data-view="editor"]')?.click());
+    $('#editFromPreview')?.addEventListener('click', () => { if (state.editing) setEditing(false); document.querySelector('[data-view="editor"]')?.click(); });
     $('#previewPaperSize')?.addEventListener('change', event => {
       state.size = event.target.value;
       const other = $('#paperSize'); if (other) other.value = state.size;
