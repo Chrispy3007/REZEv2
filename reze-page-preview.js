@@ -326,8 +326,8 @@
   function bind() {
     $('#largeZoomOut')?.addEventListener('click', () => { state.zoom = Math.max(.5, Math.round((state.zoom - .1) * 100) / 100); applyZoom(); });
     $('#largeZoomIn')?.addEventListener('click', () => { state.zoom = Math.min(1.5, Math.round((state.zoom + .1) * 100) / 100); applyZoom(); });
-    $('#zoomOut')?.addEventListener('click', () => { state.liveZoom = Math.max(.65, Math.round((state.liveZoom - .1) * 100) / 100); applyZoom(); });
-    $('#zoomIn')?.addEventListener('click', () => { state.liveZoom = Math.min(1.4, Math.round((state.liveZoom + .1) * 100) / 100); applyZoom(); });
+    $('#zoomOut')?.addEventListener('click', () => { state.liveZoom = Math.max(.5, Math.round((state.liveZoom - .1) * 100) / 100); applyZoom(); });
+    $('#zoomIn')?.addEventListener('click', () => { state.liveZoom = Math.min(3, Math.round((state.liveZoom + .1) * 100) / 100); applyZoom(); });
     $('#fitPreview')?.addEventListener('click', () => { state.liveZoom = 1; applyZoom(); });
     $('#editFromPreview')?.addEventListener('click', () => document.querySelector('[data-view="editor"]')?.click());
     $('#previewPaperSize')?.addEventListener('change', event => {

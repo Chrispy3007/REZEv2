@@ -463,3 +463,17 @@ body[data-paper-size="Letter"] { page: letter; }
 #view-editor .editor-mini-page-frame{position:relative!important;flex:0 0 auto!important;overflow:visible!important;}
 #view-editor .editor-mini-page{position:absolute!important;top:0!important;left:0!important;margin:0!important;}
 #view-editor .preview-tools #zoomValue{min-width:34px;text-align:center;font-variant-numeric:tabular-nums;}
+
+/* Live Document: allow true-size inspection at 300% (the base preview is 34% of page width). */
+#view-editor .editor-preview-pages{
+  width:100%;
+  box-sizing:border-box;
+  align-items:flex-start!important;
+  overflow-x:auto!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+}
+#view-editor .editor-mini-page-shell{
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
