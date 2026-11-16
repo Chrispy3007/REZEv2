@@ -20,7 +20,7 @@ The vanilla JavaScript editor and local resume storage are unchanged. No Groq SD
 
 ## Deploy the Groq API to Vercel
 
-1. Create/import a Vercel project from this source repository. The project contains `api/resume/classify.js` and `vercel.json`. It hosts the API separately; GitHub Pages continues to host the static REZE editor.
+1. Create/import a Vercel project from this source repository. The Vercel project Root Directory must be the directory that directly contains `api/`, `vercel.json`, and the frontend files. The `api/` folder must be at that directory root (not nested one level deeper). Vercel auto-discovers functions in the root `api/` directory; no per-function glob override is needed. It hosts the API separately; GitHub Pages continues to host the static REZE editor.
 2. In Vercel → Project → Settings → Environment Variables, configure:
    - `GROQ_API_KEY` — your Groq API key. Mark it sensitive. Never commit it or paste it into REZE Settings.
    - `GROQ_MODEL` — optional. Defaults to `openai/gpt-oss-20b`; choose a model enabled for your Groq account that supports JSON-object output.
