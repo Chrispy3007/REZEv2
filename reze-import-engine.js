@@ -11,7 +11,10 @@
   modern:['personal.name','personal.title','personal.email','personal.phone','personal.location','personal.links','summary','experience[]','education[]','skillsGroups[]','projects[]','certifications[]','customSections[]'],
   classic:['personal.name','personal.title','personal.email','personal.phone','personal.location','summary','experience[]','education[]','skillsGroups[]','projects[]','certifications[]'],
   minimal:['personal.name','personal.title','personal.email','personal.phone','summary','experience[]','education[]','skillsGroups[]'],
-  technical:['personal.name','personal.title','personal.email','personal.phone','summary','experience[]','skillsGroups[]','projects[]','certifications[]','education[]']
+  technical:['personal.name','personal.title','personal.email','personal.phone','summary','experience[]','skillsGroups[]','projects[]','certifications[]','education[]'],
+  executive:['personal.name','personal.title','personal.email','personal.phone','personal.location','summary','experience[]','education[]','skillsGroups[]','certifications[]'],
+  compact:['personal.name','personal.title','personal.email','personal.phone','summary','experience[]','education[]','skillsGroups[]'],
+  creative:['personal.name','personal.title','personal.email','personal.phone','personal.links','summary','experience[]','projects[]','skillsGroups[]','education[]','certifications[]']
  };
  const migrate=(src,sourceId)=>{
   const old=src&&typeof src==='object'?clone(src):{}, legacy=Number(old.schemaVersion||1)<2, d=blank();
@@ -41,10 +44,15 @@
    const page=await pdf.getPage(n), c=await page.getTextContent();
    const items=c.items.filter(i=>i.str&&i.str.trim()).map(i=>({text:i.str.trim(),x:i.transform?.[4]||0,y:i.transform?.[5]||0}));
    items.sort((a,b)=>Math.abs(a.y-b.y)>2.5?b.y-a.y:a.x-b.x);
-   const lines=[];for(const item of items){let l=lines.find(x=>Math.abs(x.y-item.y)<=2.5);if(!l){l={y:item.y,items:[]};lines.push(l)}l.items.push(item)}
-   lines.sort((a,b)=>b.y-a.y);
-   const pageLines=lines.map(l=>l.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean);
-   pages.push({page:n,lines:pageLines});pageLines.forEach(line=>all.push({text:line,page:n,source:'pdf-text'}));
+   const rows=[];for(const item of items){let row=rows.find(x=>Math.abs(x.y-item.y)<=2.5);if(!row){row={y:item.y,items:[]};rows.push(row)}row.items.push(item)}
+   rows.sort((a,b)=>b.y-a.y);
+   // Detect a stable two-column layout from the largest horizontal gap in text rows.
+   const gaps=[];rows.forEach(row=>{const xs=row.items.map(i=>i.x).sort((a,b)=>a-b);for(let j=1;j<xs.length;j++)if(xs[j]-xs[j-1]>65)gaps.push(xs[j]-xs[j-1]);});
+   const split=gaps.length?Math.max(...gaps):0;const twoColumn=split>105&&rows.filter(r=>r.items.some(i=>i.x<Math.min(...r.items.map(z=>z.x))+split/2)&&r.items.some(i=>i.x>Math.min(...r.items.map(z=>z.x))+split/2)).length>=3;
+   let pageLines=[];
+   if(twoColumn){const xs=rows.flatMap(r=>r.items.map(i=>i.x)).sort((a,b)=>a-b);const minX=xs[0],maxX=xs[xs.length-1];let best={gap:0,mid:(minX+maxX)/2};for(let j=1;j<xs.length;j++){const g=xs[j]-xs[j-1];if(g>best.gap)best={gap:g,mid:(xs[j]+xs[j-1])/2};}const left=[],right=[];rows.forEach(r=>r.items.forEach(i=>(i.x<best.mid?left:right).push(i)));const makeColumn=arr=>{const rr=[];arr.forEach(i=>{let row=rr.find(x=>Math.abs(x.y-i.y)<=2.5);if(!row){row={y:i.y,items:[]};rr.push(row)}row.items.push(i)});return rr.sort((a,b)=>b.y-a.y).map(r=>r.items.sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean)};pageLines=[...makeColumn(left),...makeColumn(right)];}
+   else pageLines=rows.map(r=>r.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean);
+   pages.push({page:n,lines:pageLines,twoColumn});pageLines.forEach(line=>all.push({text:line,page:n,source:'pdf-text'}));
   }
   let text=pages.map(p=>p.lines.join('\n')).join('\n\n');
   if(text.replace(/\s/g,'').length<40){
@@ -72,57 +80,56 @@
   return {text:clean(raw.value).replace(/\r/g,''),lines:lines.length?lines:clean(raw.value).split('\n').map(text=>({text,page:null,source:'docx'})),pages:[],warning:converted.messages?.length?'Some DOCX formatting could not be interpreted; review the extracted fields.':''};
  }
  function classify(extracted,sourceId){
-  const text=clean(extracted.text).replace(/\r/g,''),lines=(extracted.lines?.length?extracted.lines:text.split('\n').map(text=>({text,page:null,source:'text'}))).map(x=>({...x,text:clean(x.text)})).filter(x=>x.text);
-  const d=blank(),evidence={};const mark=(field,items,confidence='medium')=>evidence[field]={confidence,sources:items.map(x=>({text:x.text,page:x.page??null,source:x.source||'text'}))};
-  const email=text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);if(email){d.email=email[0];mark('email',[{text:email[0]}],'high');}
-  const phone=text.match(/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d[\d\s().-]{7,}\d/);if(phone&&phone[0].replace(/\D/g,'').length>=7){d.phone=phone[0].trim();mark('phone',[{text:phone[0]}],'medium');}
-  const url=text.match(/(?:https?:\/\/|www\.)[^\s)]+/i);if(url){d.links=url[0];mark('links',[{text:url[0]}],'high');}
-  const headings={
-   summary:/^(professional\s+summary|summary|profile|career\s+objective|objective|about\s+me)$/i,
-   experience:/^(professional\s+experience|work\s+experience|employment\s+history|experience|work\s+history|career\s+history)$/i,
-   education:/^(education|academic\s+background|qualifications)$/i,
-   skills:/^(skills|technical\s+skills|core\s+competencies|competencies|tools\s*(?:&|and)\s*technologies|areas\s+of\s+expertise)$/i,
-   certifications:/^(certifications?|licenses?|training|courses)$/i,
-   projects:/^(projects?|selected\s+projects|personal\s+projects)$/i
-  };
-  const sections={intro:[]};let active='intro',unknown=[];
-  lines.forEach(l=>{const key=Object.keys(headings).find(k=>headings[k].test(l.text.replace(/[:：]$/,'')));if(key){active=key;sections[key]??=[];mark('section:'+key,[l],'high');}else if(l.text.length<48&&(/[:：]$/.test(l.text)||(/^[A-Z0-9 &/()-]+$/.test(l.text)&&/[A-Z]/.test(l.text)))){active='unmapped_'+l.text.toLowerCase().replace(/[^a-z0-9]+/g,'_');sections[active]??=[];sections[active].push({ ...l, text:l.text });mark('section:'+active,[l],'low');}else{sections[active]??=[];sections[active].push(l);}});
+  const text=String(extracted.text||'').replace(/\r/g,''),lines=(extracted.lines?.length?extracted.lines:text.split('\n').map(text=>({text,page:null,source:'text'}))).map((x,i)=>({...x,index:i,text:clean(x.text).replace(/\s+/g,' ')})).filter(x=>x.text);
+  const d=blank(),evidence={};
+  const mark=(field,items,confidence='medium',reason='')=>{evidence[field]={confidence,reason,sources:(items||[]).map(x=>({text:x.text,page:x.page??null,source:x.source||'text'}))};};
+  const headingDefs={summary:/^(professional\s+summary|summary|profile|career\s+objective|objective|about\s+me)$/i,experience:/^(professional\s+experience|work\s+experience|employment\s+history|experience|work\s+history|career\s+history)$/i,education:/^(education|academic\s+background|qualifications|academic\s+qualifications)$/i,skills:/^(skills|core\s+technical\s+skills|technical\s+skills|core\s+competencies|competencies|tools\s*(?:&|and)\s*technologies|areas\s+of\s+expertise|technical\s+expertise)$/i,certifications:/^(certifications?|licenses?|professional\s+certifications?|training|courses)$/i,projects:/^(projects?|selected\s+projects|personal\s+projects)$/i};
+  const sections={intro:[]};let active='intro';const unknown=[];
+  for(const l of lines){const raw=l.text.replace(/[:：]$/,'');const key=Object.keys(headingDefs).find(k=>headingDefs[k].test(raw));if(key){active=key;sections[key]??=[];mark('section:'+key,[l],'high','Recognised section heading');continue;}
+   // Detect common unambiguous section labels while retaining all content for review.
+   if(/^(awards?|honou?rs?|languages?|publications?|volunteer(?:ing)?|interests?|additional information|references|objective|achievements?)\s*:?$/i.test(raw)){active='unknown_'+raw.toLowerCase().replace(/[^a-z]+/g,'_');sections[active]??=[];mark('section:'+active,[l],'medium','Unmapped section heading');continue;}
+   (sections[active]??(sections[active]=[])).push(l);
+  }
+  const email=text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);if(email){d.email=email[0];mark('email',[{text:email[0]}],'high','Email pattern');}
+  const phoneCandidates=text.match(/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d[\d\s().-]{7,}\d/g)||[];const phone=phoneCandidates.find(v=>v.replace(/\D/g,'').length>=10&&v.replace(/\D/g,'').length<=15);if(phone){d.phone=phone.trim();mark('phone',[{text:phone}],'medium','Phone number pattern; verify country/extension');}
+  const urls=[...text.matchAll(/(?:https?:\/\/|www\.)[^\s)]+/ig)].map(m=>m[0]);if(urls.length){d.links=urls.slice(0,3).join(' | ');mark('links',urls.map(text=>({text})),'high','URL pattern');}
   const intro=(sections.intro||[]).filter(x=>!email||!x.text.includes(email[0]));
-  const nameLine=intro.find(x=>x.text.length<65&&!/@|https?:\/\//i.test(x.text)&&!/\d{5,}/.test(x.text));
-  if(nameLine){d.name=nameLine.text;mark('name',[nameLine],'medium');}
-  const titleLine=intro.find(x=>x!==nameLine&&x.text.length<100&&!/@|https?:\/\//i.test(x.text));
-  if(titleLine){d.title=titleLine.text;mark('title',[titleLine],'low');}
-  const summary=(sections.summary||[]).map(x=>x.text).join('\n');
-  if(summary){d.summary=summary;mark('summary',sections.summary,'medium');}
-  else{const maybe=intro.filter(x=>x!==nameLine&&x!==titleLine&&x.text.length>55);if(maybe.length){d.summary=maybe.map(x=>x.text).join('\n');mark('summary',maybe,'low');}}
-  const skillLines=sections.skills||[];
-  if(skillLines.length){const combined=skillLines.map(x=>x.text.replace(/^[•·-]\s*/,''));d.skillsGroups=[{id:uid('skill'),heading:'Technical Skills',description:combined.join(', ')}];d.skills=combined.join(', ');mark('skillsGroups',skillLines,'medium');}
-  const parseEntries=(arr,type)=>{
-   const groups=[];let current=null;
-   arr.forEach(l=>{
-    const t=l.text.replace(/^[•·-]\s*/,'');
-    const hasDate=/\b(?:19|20)\d{2}\b/.test(t);
-    const likelyHeader=!/^[•·-]/.test(l.text)&&t.length<120;
-    if(!current||(!/^[•·-]/.test(l.text)&&likelyHeader&&current.details.length>0&&!hasDate)){if(current)groups.push(current);current={id:uid(type),role:t,company:'',start:'',end:'',details:''};}
-    else current.details+=(current.details?'\n':'')+t;
-    const date=t.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\.?\s*(?:19|20)\d{2})(?:\s*[-–—to]+\s*(Present|Current|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\.?\s*(?:19|20)\d{2}))?/i);
-    if(date){current.start=date[1];current.end=date[2]||'';current.role=current.role.replace(date[0],'').trim();}
-   });
-   if(current)groups.push(current);
-   return groups.filter(x=>x.role).map(x=>{if(type==='experience'&&!x.company&&x.details){const parts=x.details.split('\n');if(parts.length>1){x.company=parts.shift();x.details=parts.join('\n')}}return x;});
-  };
-  d.experience=parseEntries(sections.experience||[],'experience');if(d.experience.length)mark('experience',sections.experience,'low');
-  d.education=parseEntries(sections.education||[],'education');if(d.education.length)mark('education',sections.education,'low');
-  d.certifications=(sections.certifications||[]).map(x=>({id:uid('cert'),name:x.text.replace(/^[•·-]\s*/,''),details:''}));if(d.certifications.length)mark('certifications',sections.certifications,'medium');
-  d.projects=(sections.projects||[]).map(x=>({id:uid('project'),name:x.text.replace(/^[•·-]\s*/,''),description:''}));if(d.projects.length)mark('projects',sections.projects,'medium');
+  const nameCandidates=intro.filter(x=>x.text.length>=3&&x.text.length<=65&&!/@|https?:\/\//i.test(x.text)&&!/\d{5,}/.test(x.text)&&!/[|•]/.test(x.text));
+  const nameLine=nameCandidates.find(x=>/^[A-Z][A-Z .'-]+$/.test(x.text)||x.text.split(/\s+/).length>=2);
+  if(nameLine){d.name=nameLine.text.replace(/\s+/g,' ').trim();mark('name',[nameLine],'medium','Likely name line before first section heading');}
+  const titleLine=intro.find(x=>x!==nameLine&&x.text.length<130&&!/@|https?:\/\//i.test(x.text)&&(/[|]/.test(x.text)||/\b(engineer|analyst|developer|manager|consultant|specialist|professional|designer|administrator|tester|architect)\b/i.test(x.text)));
+  if(titleLine){d.title=titleLine.text.replace(/\s*\|\s*/g,' | ');mark('title',[titleLine],'medium','Role/title wording in document header');}
+  const summaryLines=sections.summary||[];if(summaryLines.length){d.summary=summaryLines.map(x=>x.text).join('\n');mark('summary',summaryLines,'high','Content located under summary heading');}
+  else{const candidates=intro.filter(x=>x!==nameLine&&x!==titleLine&&x.text.length>80);if(candidates.length){d.summary=candidates.map(x=>x.text).join('\n');mark('summary',candidates,'low','Inferred from unlabelled introductory paragraph; review');}}
+  // Skills preserve heading-description pairs (e.g. "Penetration Testing: ...").
+  const skillLines=sections.skills||[],groups=[];let group=null;
+  for(const l of skillLines){const t=l.text.replace(/^[•·▪-]\s*/,'');const m=t.match(/^([^:：]{2,55})[:：]\s*(.*)$/);if(m){if(group)groups.push(group);group={id:uid('skill'),heading:m[1].trim(),description:m[2].trim()};}else if(group){group.description+=(group.description?' ':'')+t;}else{group={id:uid('skill'),heading:'Technical Skills',description:t};}}
+  if(group)groups.push(group);d.skillsGroups=groups;d.skills=groups.map(g=>[g.heading,g.description].filter(Boolean).join(': ')).join('; ');if(skillLines.length)mark('skillsGroups',skillLines,groups.some(g=>g.heading==='Technical Skills')?'medium':'high','Colon-delimited skill groups and continuation lines');
+  const dateRe=/(\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.]?\s+\d{4}|\b(?:19|20)\d{2}\b)\s*(?:[-–—]|\bto\b)\s*(Present|Current|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.]?\s+\d{4}|\b(?:19|20)\d{2}\b)?/i;
+  const isBullet=s=>/^[•·▪◦*-]\s*/.test(s);const stripBullet=s=>s.replace(/^[•·▪◦*-]\s*/,'').trim();
+  const parseExperience=arr=>{const out=[];let cur=null;const flush=()=>{if(cur&&(cur.role||cur.company||cur.details))out.push(cur);cur=null;};
+   for(const l of arr){let t=stripBullet(l.text);if(!t)continue;const date=t.match(dateRe);const hasSep=/\s[|｜]\s/.test(t);const headerLike=!isBullet(l.text)&&t.length<220&&(hasSep||!!date||(/^[A-Z][A-Z0-9 &.,'()-]{4,}$/.test(t)&&!/[.!?]$/.test(t)));
+    if(headerLike){flush();let parts=t.split(/\s*[|｜]\s*/).map(clean).filter(Boolean);let company='',role='',start='',end='';
+     const dm=t.match(dateRe);if(dm){start=dm[1]||'';end=dm[2]||'';}
+     if(parts.length>=2){company=parts[0];role=parts.slice(1).join(' | ').replace(dm?.[0]||'','').trim().replace(/[|｜,–—-]+$/,'').trim();}
+     else{role=t.replace(dm?.[0]||'','').trim();}
+     cur={id:uid('exp'),role,company,start,end,details:''};continue;
+    }
+    if(!cur){cur={id:uid('exp'),role:'',company:'',start:'',end:'',details:''};}
+    if(date&&!cur.start){cur.start=date[1]||'';cur.end=date[2]||'';t=t.replace(date[0],'').replace(/[|,–—-]+$/,'').trim();}
+    if(t){if(!cur.role&&!isBullet(l.text)&&t.length<100){cur.role=t;}else if(isBullet(l.text)){cur.details+=(cur.details?'\n':'')+'• '+t;}else{cur.details+=(cur.details?' ':'')+t;}}
+   }flush();return out;};
+  const expLines=sections.experience||[];d.experience=parseExperience(expLines);if(d.experience.length)mark('experience',expLines,d.experience.every(x=>x.company&&x.role)?'high':'medium','Grouped headers and following bullet/paragraph lines; verify ambiguous employer/title splits');
+  // Education entries are often one or two lines with degree — institution | date.
+  const eduLines=sections.education||[];let edu=[];for(let i=0;i<eduLines.length;i++){const l=eduLines[i],t=stripBullet(l.text);if(!t)continue;const date=t.match(dateRe)||t.match(/((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.]?\s+\d{4}|\b(?:19|20)\d{2}\b)/i);const withoutDate=t.replace(date?.[0]||'','').trim().replace(/[|｜,–—-]+$/,'').trim();const parts=withoutDate.split(/\s*[|｜]\s*|\s+[—–]\s+/).map(clean).filter(Boolean);let role=parts[0]||withoutDate,company=parts.slice(1).join(' — '),details='';if(!company&&i+1<eduLines.length&&!date&&eduLines[i+1].text.length<110){company=stripBullet(eduLines[++i].text);}edu.push({id:uid('edu'),role,company,start:date?.[1]||'',end:date?.[2]||'',details});}d.education=edu;if(edu.length)mark('education',eduLines,'medium','Degree/institution split from separators and adjacent lines; verify dates');
+  const certLines=sections.certifications||[];d.certifications=certLines.map(l=>({id:uid('cert'),name:stripBullet(l.text),details:''})).filter(x=>x.name);if(d.certifications.length)mark('certifications',certLines,'medium','Located under certification heading');
+  const projectLines=sections.projects||[];let projects=[];for(const l of projectLines){const t=stripBullet(l.text);if(!t)continue;if(isBullet(l.text)&&projects.length)projects[projects.length-1].description+=(projects[projects.length-1].description?'\n':'')+t;else projects.push({id:uid('project'),name:t,description:''});}d.projects=projects;if(projects.length)mark('projects',projectLines,'medium','Located under projects heading');
   const recognised=new Set(['intro','summary','experience','education','skills','certifications','projects']);
-  Object.keys(sections).filter(k=>!recognised.has(k)).forEach(k=>unknown.push(...sections[k]));
-  const recognisedText=new Set(Object.values(sections).flat().map(x=>x.text));
-  lines.forEach(l=>{if(!recognisedText.has(l.text)&&!Object.values(headings).some(r=>r.test(l.text)))unknown.push(l)});
-  if(unknown.length){d.additionalInformation=unknown.map(x=>({id:uid('info'),title:'Unmapped content',content:x.text,sourcePage:x.page??null}));d.customSections.push({id:uid('section'),title:'Additional Information',body:unknown.map(x=>x.text).join('\n'),visible:true});mark('additionalInformation',unknown,'low');}
-  d.extras=[...d.projects.map(x=>({type:'Project',name:x.name,details:x.description})),...d.certifications.map(x=>({type:'Certification',name:x.name,details:x.details}))];
-  d.metadata.sourceDocumentId=sourceId;d.provenance=evidence;
-  return {data:migrate(d,sourceId),evidence,unknownCount:unknown.length};
+  for(const k of Object.keys(sections)){if(!recognised.has(k)){const rows=sections[k]||[];unknown.push(...rows.map(x=>({...x,section:k.replace(/^unknown_/,'').replace(/_/g,' ')})));}}
+  if(unknown.length){d.additionalInformation=unknown.map(x=>({id:uid('info'),title:x.section||'Additional Information',content:x.text,sourcePage:x.page??null}));d.customSections.push({id:uid('section'),title:'Additional Information',body:unknown.map(x=>x.text).join('\n'),visible:true});mark('additionalInformation',unknown,'low','Preserved unclassified content for manual review');}
+  d.extras=[...d.projects.map(x=>({type:'Project',name:x.name,details:x.description})),...d.certifications.map(x=>({type:'Certification',name:x.name,details:x.details}))];d.metadata.sourceDocumentId=sourceId;d.provenance=evidence;
+  const missing=['name','title','email','phone','summary','experience','education','skillsGroups'].filter(k=>Array.isArray(d[k])?!d[k].length:!clean(d[k]));
+  return {data:migrate(d,sourceId),evidence,unknownCount:unknown.length,missingFields:missing,quality:{detectedFields:Object.keys(evidence).length,missingFields:missing,needsReview:Object.values(evidence).filter(x=>x.confidence!=='high').length}};
  }
  function ensureReviewStyles(){
   if($('#rezeImportReviewStyles'))return;
@@ -130,21 +137,22 @@
   .reze-review-backdrop{position:fixed;inset:0;z-index:99999;background:#090710d9;backdrop-filter:blur(14px);display:grid;place-items:center;padding:18px}
   .reze-review{width:min(1100px,96vw);max-height:92vh;overflow:auto;background:#1b1628;color:#f5f1ff;border:1px solid #65518c;border-radius:22px;padding:24px;box-shadow:0 30px 100px #0009}
   .reze-review h2{margin:0 0 6px;font-size:24px}.reze-review p{color:#c7bddb}.reze-review textarea{width:100%;min-height:300px;background:#100d19;color:#f5f1ff;border:1px solid #55456f;border-radius:12px;padding:14px;font:13px/1.55 ui-monospace,monospace;resize:vertical}
-  .reze-review .rr-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}.reze-review label{font-size:13px;color:#ded5f0}.reze-review select{background:#100d19;color:#fff;border:1px solid #66548b;border-radius:9px;padding:9px}.reze-review button{border:1px solid #7964a2;border-radius:10px;padding:10px 15px;background:#302344;color:#fff;cursor:pointer}.reze-review button.primary{background:#b9a4ff;color:#171222;border-color:#b9a4ff;font-weight:700}.reze-review button:disabled{opacity:.45;cursor:not-allowed}.reze-review .rr-status{font-size:12px;color:#c7b4ff}.reze-review .rr-conflicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.reze-review .rr-conflict{padding:10px;border:1px solid #514267;border-radius:10px}.reze-review .rr-warning{color:#f4c78a}
+  .reze-review .rr-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}.reze-review label{font-size:13px;color:#ded5f0}.reze-review select{background:#100d19;color:#fff;border:1px solid #66548b;border-radius:9px;padding:9px}.reze-review button{border:1px solid #7964a2;border-radius:10px;padding:10px 15px;background:#302344;color:#fff;cursor:pointer}.reze-review button.primary{background:#b9a4ff;color:#171222;border-color:#b9a4ff;font-weight:700}.reze-review button:disabled{opacity:.45;cursor:not-allowed}.reze-review .rr-status{font-size:12px;color:#c7b4ff}.reze-review .rr-conflicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.reze-review .rr-conflict{padding:10px;border:1px solid #514267;border-radius:10px}.reze-review .rr-warning{color:#f4c78a}.rr-evidence-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:7px;margin:12px 0}.rr-evidence{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid #514267;border-radius:9px;font-size:12px}.rr-evidence b{text-transform:capitalize}.rr-high{color:#8fe0b3}.rr-medium{color:#f2d18b}.rr-low{color:#ffadad}.rr-raw-data{margin:12px 0}.rr-raw-data summary{cursor:pointer;color:#c7b4ff;font-size:13px;padding:8px 0}.rr-raw-data textarea{margin-top:8px}
   `;
   document.head.appendChild(st);
  }
- function showReview({data,evidence,warning,originalText,file,record}){
+ function showReview({data,evidence,warning,quality,originalText,file,record}){
   ensureReviewStyles();
   return new Promise(resolve=>{
    const active=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch{return {}}})();
    const backdrop=document.createElement('div');backdrop.className='reze-review-backdrop';
    const status=warning?`<p class="rr-warning">${esc(warning)}</p>`:'';
    backdrop.innerHTML=`<section class="reze-review" role="dialog" aria-modal="true" aria-labelledby="rrTitle">
-    <div class="rr-row" style="justify-content:space-between"><div><div class="eyebrow">REZE · IMPORT REVIEW</div><h2 id="rrTitle">Review extracted resume data</h2><p>${esc(file.name)} · Original document remains stored separately and unchanged.</p></div><span class="rr-status">${Object.keys(evidence||{}).length} fields/sections detected</span></div>
-    ${status}<p>Check the structured data before it enters your resume. Confidence and source evidence are retained in the import record. Edit the JSON below if anything needs correction.</p>
-    <textarea id="rrJson" spellcheck="false" aria-label="Extracted resume data">${esc(JSON.stringify(data,null,2))}</textarea>
-    <div class="rr-row"><label>Resume template <select id="rrTemplate"><option value="modern">Modern</option><option value="classic">Classic</option><option value="minimal">Minimal</option><option value="technical">Technical</option></select></label><label>Import destination <select id="rrDestination"><option value="new">Create a new resume</option><option value="merge">Merge into the currently open resume</option></select></label><label><input id="rrAiConsent" type="checkbox" disabled> Allow optional external AI classification (not configured in this browser)</label></div>
+    <div class="rr-row" style="justify-content:space-between"><div><div class="eyebrow">REZE · IMPORT REVIEW</div><h2 id="rrTitle">Review extracted resume data</h2><p>${esc(file.name)} · Original document remains stored separately and unchanged.</p></div><span class="rr-status">${Object.keys(evidence||{}).length} fields/sections detected · ${quality?.missingFields?.length||0} missing · ${quality?.needsReview||0} need review</span></div>
+    ${status}<p>REZE has prepared an editable resume draft. High-confidence fields can be used immediately; check uncertain fields and missing information before approval. Original content remains available separately.</p><div class="rr-row"><span class="rr-status">Missing: ${esc((quality?.missingFields||[]).join(', ')||'None detected')}</span><span class="rr-status">Low confidence: ${esc(String(quality?.needsReview||0))}</span></div>
+    <div class="rr-evidence-grid">${Object.entries(evidence||{}).map(([field,item])=>`<div class="rr-evidence"><span>${esc(field.replace(/^section:/,''))}</span><b class="rr-${esc(item.confidence||'low')}">${esc(item.confidence||'unknown')}</b></div>`).join('')||'<span class="rr-status">No field evidence available.</span>'}</div>
+    <details class="rr-raw-data"><summary>Advanced: inspect or edit structured resume data</summary><textarea id="rrJson" spellcheck="false" aria-label="Extracted resume data">${esc(JSON.stringify(data,null,2))}</textarea></details>
+    <div class="rr-row"><label>Resume template <select id="rrTemplate"><option value="modern">Modern</option><option value="classic">Classic</option><option value="minimal">Minimal</option><option value="technical">Technical</option><option value="executive">Executive</option><option value="compact">Compact</option><option value="creative">Creative</option></select></label><label>Import destination <select id="rrDestination"><option value="new">Create a new resume</option><option value="merge">Merge into the currently open resume</option></select></label><label><input id="rrAiConsent" type="checkbox" disabled> Allow optional external AI classification (not configured in this browser)</label></div>
     <div class="rr-row"><div id="rrTemplatePreview" class="rr-status">Template mapping preview will appear here.</div></div><div id="rrConflictPanel" hidden><p><b>Resolve top-level field conflicts</b> — choose which version to keep for each populated field.</p><div class="rr-conflicts" id="rrConflicts"></div><p class="rr-warning">Repeating entries will be added as separate entries; possible duplicates are not merged automatically.</p></div>
     <div class="rr-row" style="justify-content:space-between"><span class="rr-status">Nothing is applied until you approve this review.</span><div class="rr-row" style="margin:0"><button type="button" id="rrCancel">Cancel import</button><button type="button" class="primary" id="rrApprove">Approve & import</button></div></div>
    </section>`;
@@ -201,7 +209,7 @@
   }else throw new Error('Unsupported file type.');
   ui.progress(70,'Classifying sections and mapping fields');
   const result=classify(extracted,record?.id);
-  const approved=await showReview({data:result.data,evidence:result.evidence,warning:extracted.warning||'',originalText:extracted.text,file,record});
+  const approved=await showReview({data:result.data,evidence:result.evidence,quality:result.quality,warning:extracted.warning||'',originalText:extracted.text,file,record});
   if(!approved)return {cancelled:true};
   ui.progress(90,'Applying approved resume data');
   $('#loadSaved')?.click();
