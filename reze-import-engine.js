@@ -175,15 +175,15 @@
     ['Platform & Production Operations',['Platform & Production Operations','Platform &']]
   ];
   const wrappedCategoryContinuations=[
-    {match:/^&\s*Automation\b/i,from:/^Infrastructure as Code$/i,to:'Infrastructure as Code & Automation'},
-    {match:/^Orchestration\b/i,from:/^Containers\s*&$/i,to:'Containers & Orchestration'},
-    {match:/^GitOps\b/i,from:/^CI\/CD,\s*SCM\s*&$/i,to:'CI/CD, SCM & GitOps'},
-    {match:/^&\s*Alerting\b/i,from:/^Monitoring$/i,to:'Monitoring & Alerting'},
-    {match:/^DevSecOps\b/i,from:/^Security\s*&$/i,to:'Security & DevSecOps'},
-    {match:/^&\s*DNS\b/i,from:/^Networking$/i,to:'Networking & DNS'},
-    {match:/^Backend Technologies\b/i,from:/^Application\s*&$/i,to:'Application & Backend Technologies'},
-    {match:/^Databases\b/i,from:/^Messaging,\s*Caching\s*&$/i,to:'Messaging, Caching & Databases'},
-    {match:/^Production Operations\b/i,from:/^Platform\s*&$/i,to:'Platform & Production Operations'}
+    {match:/^&\s*Automation\b/i,from:/^Infrastructure as Code(?:\s*&\s*Automation)?$/i,to:'Infrastructure as Code & Automation'},
+    {match:/^Orchestration\b/i,from:/^Containers\s*(?:&\s*(?:Orchestration)?)?$/i,to:'Containers & Orchestration'},
+    {match:/^GitOps\b/i,from:/^CI\/CD,\s*SCM\s*(?:&\s*(?:GitOps)?)?$/i,to:'CI/CD, SCM & GitOps'},
+    {match:/^&\s*Alerting\b/i,from:/^Monitoring(?:\s*&\s*Alerting)?$/i,to:'Monitoring & Alerting'},
+    {match:/^DevSecOps\b/i,from:/^Security\s*(?:&\s*(?:DevSecOps)?)?$/i,to:'Security & DevSecOps'},
+    {match:/^&\s*DNS\b/i,from:/^Networking(?:\s*&\s*DNS)?$/i,to:'Networking & DNS'},
+    {match:/^Backend Technologies\b/i,from:/^Application\s*(?:&\s*(?:Backend Technologies)?)?$/i,to:'Application & Backend Technologies'},
+    {match:/^Databases\b/i,from:/^Messaging,\s*Caching\s*(?:&\s*(?:Databases)?)?$/i,to:'Messaging, Caching & Databases'},
+    {match:/^Production Operations\b/i,from:/^Platform\s*(?:&\s*(?:Production Operations)?)?$/i,to:'Platform & Production Operations'}
   ];
   const appendSkillText=value=>{const v=normalizeSkillText(value);if(!v)return;if(!group)group={id:uid('skill'),heading:'Technical Skills',description:v};else group.description+=(group.description?' ':'')+v;};
   for(const l of skillLines){
