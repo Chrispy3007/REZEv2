@@ -7,6 +7,15 @@ const blank=()=>({name:'',title:'',email:'',phone:'',location:'',links:'',summar
 let data=blank(), timer;
 const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s||'').trim();
+// Human-readable file size used by the original-document library.
+function formatBytes(bytes){
+ const size=Number(bytes)||0;
+ if(size<1024)return `${size} B`;
+ const units=['KB','MB','GB','TB'];
+ let value=size/1024,index=0;
+ while(value>=1024&&index<units.length-1){value/=1024;index++;}
+ return `${value.toFixed(value>=10?1:2)} ${units[index]}`;
+}
 function hydrate(){try{const v=JSON.parse(localStorage.getItem(KEY));if(v&&typeof v==='object')data={...blank(),...v,experience:Array.isArray(v.experience)?v.experience:[],education:Array.isArray(v.education)?v.education:[],extras:Array.isArray(v.extras)?v.extras:[],skillsGroups:Array.isArray(v.skillsGroups)?v.skillsGroups:[],customSections:Array.isArray(v.customSections)?v.customSections:[],previewHtmlOverride:String(v.previewHtmlOverride||''),sectionOrder:Array.isArray(v.sectionOrder)?v.sectionOrder:blank().sectionOrder,hiddenSections:Array.isArray(v.hiddenSections)?v.hiddenSections:[]};}catch{} }
 function ensureSkillGroups(){if(!Array.isArray(data.skillsGroups))data.skillsGroups=[];if(!data.skillsGroups.length&&clean(data.skills)){data.skillsGroups=[{heading:'Technical Skills',description:clean(data.skills)}];}if(data.skillsGroups.length)data.skills='';}
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(data));$('#saveState').textContent='✓ Saved locally';}catch{$('#saveState').textContent='Unable to save locally';}}
