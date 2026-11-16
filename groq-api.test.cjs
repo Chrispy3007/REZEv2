@@ -63,7 +63,7 @@ const modelResume = {
     return response;
   };
   try {
-    const req = { method: 'POST', headers: { origin: 'https://chrispy3007.github.io', 'x-forwarded-for': '192.0.2.1' }, body: { task: 'classify_resume', sourceText: 'Test Person\nSecurity: VAPT' } };
+    const req = { method: 'POST', headers: { origin: 'https://chrispy3007.github.io', 'x-forwarded-for': '192.0.2.1' }, body: { task: 'classify_resume', sourceText: 'Test Person\nSecurity: VAPT', browserDraft: { name: 'Test Person', skillsGroups: [{ heading: 'Security', description: 'VAPT' }] } } };
     const res = response(); await handler(req, res);
 
     assert.equal(res.statusCode, 200);
@@ -92,8 +92,23 @@ const modelResume = {
     assert.equal(schema.additionalProperties, false);
     assert.deepEqual(schema.properties.resume.required, Object.keys(modelResume));
     assert.equal(schema.properties.resume.additionalProperties, false);
-    assert.match(sentRequests[0].messages[0].content, /untrusted resume text/i);
-    assert.match(sentRequests[0].messages[1].content, /\n\n<resume_source>\n/);
+    assert.match(sentRequests[0].messages[0].content, /demonstration examples teach mapping patterns/i);
+    assert.equal(sentRequests[0].messages.length, 8);
+    assert.equal(sentRequests[0].messages[1].role, 'user');
+    assert.match(sentRequests[0].messages[1].content, /Project: Cloud Delivery Platform/);
+    assert.equal(sentRequests[0].messages[2].role, 'assistant');
+    assert.match(sentRequests[0].messages[3].content, /Category \\| Skills/);
+    assert.match(sentRequests[0].messages[5].content, /Cluster Health Dashboard/);
+    for (const index of [2, 4, 6]) {
+      const example = JSON.parse(sentRequests[0].messages[index].content);
+      assert.deepEqual(Object.keys(example), ['resume']);
+      assert.deepEqual(Object.keys(example.resume), Object.keys(modelResume));
+    }
+    const currentMessage = sentRequests[0].messages[7];
+    assert.equal(currentMessage.role, 'user');
+    assert.match(currentMessage.content, /<browser_rules_draft>/);
+    assert.match(currentMessage.content, /Test Person/);
+    assert.match(currentMessage.content, /<resume_source>/);
 
     // Strict JSON schema provider failures trigger one JSON-object retry.
     responseQueue = [
@@ -107,6 +122,8 @@ const modelResume = {
     assert.equal(sentRequests.length, 3);
     assert.equal(sentRequests[1].response_format.type, 'json_schema');
     assert.equal(sentRequests[2].response_format.type, 'json_object');
+    assert.equal(sentRequests[2].messages.length, 8);
+    assert.match(sentRequests[2].messages[3].content, /Category \\| Skills/);
     assert.match(sentRequests[2].messages[0].content, /valid JSON only/i);
 
     const blocked = response();
