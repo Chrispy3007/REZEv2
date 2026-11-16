@@ -98,6 +98,25 @@
   out.additionalInformation=[...(out.additionalInformation||[])];
   return migrate(out,base.metadata?.sourceDocumentId);
  }
+ function ollamaSettings(){return {url:(localStorage.getItem('reze-ollama-url')||'http://localhost:11434').replace(/\/$/,''),model:localStorage.getItem('reze-ollama-model')||'llama3.2'};}
+ async function requestLocalAiClassification(text,base){
+  const cfg=ollamaSettings();
+  const prompt=`You are a resume information extraction engine. Return ONLY valid JSON, no markdown, with this exact outer shape: {"resume":{...}}. Use only facts explicitly supported by the source. Never invent or improve facts. Preserve original wording of responsibilities and achievements. Group each responsibility under the correct employer and role. Use empty strings or empty arrays for missing information. Resume fields allowed: name,title,email,phone,location,links,summary,skills,experience,education,skillsGroups,projects,certifications,additionalInformation,customSections. experience items use company,role,location,startDate,endDate,responsibilities[],achievements[]. education items use institution,degree,field,startDate,endDate,details. skillsGroups items use heading,description. projects items use name,description,technologies[]. certifications items use name,issuer,date. Any source content that does not fit must be preserved in additionalInformation. Source text:\n${String(text).slice(0,50000)}`;
+  const response=await fetch(cfg.url+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:cfg.model,stream:false,format:'json',messages:[{role:'user',content:prompt}],options:{temperature:0.1}})});
+  if(!response.ok)throw new Error('Local Ollama returned HTTP '+response.status+'. Check that Ollama is running and browser access is allowed.');
+  const body=await response.json();let content=body.message?.content||body.response;
+  if(!content)throw new Error('The local model returned an empty response.');
+  content=content.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+  let parsed;try{parsed=JSON.parse(content)}catch{throw new Error('The local model did not return valid JSON. Try a stronger instruction-following model.');}
+  return validateAiSuggestion(parsed,base);
+ }
+ function configureLocalAiSettings(){
+  if(typeof document.getElementById!=='function')return;
+  const url=document.getElementById('rezeOllamaUrl'),model=document.getElementById('rezeOllamaModel'),status=document.getElementById('ollamaStatus');
+  if(url)url.value=ollamaSettings().url;if(model)model.value=ollamaSettings().model;
+  document.getElementById('saveOllamaSettings')?.addEventListener('click',()=>{try{const u=new URL(url.value.trim());if(!['http:','https:'].includes(u.protocol))throw new Error('Use an HTTP or HTTPS address.');localStorage.setItem('reze-ollama-url',u.origin);localStorage.setItem('reze-ollama-model',model.value.trim()||'llama3.2');status.textContent='Saved. Local AI will be available during your next import.';}catch(e){status.textContent=e.message;}});
+  document.getElementById('testOllama')?.addEventListener('click',async()=>{status.textContent='Checking local Ollama connection…';try{const cfg=ollamaSettings();const r=await fetch(cfg.url+'/api/tags');if(!r.ok)throw new Error('Ollama returned HTTP '+r.status);const d=await r.json();const names=(d.models||[]).map(x=>x.name);status.textContent=names.length?'Connected. Available models: '+names.join(', '):'Connected, but no models are installed. Run ollama pull '+cfg.model+'.';}catch(e){status.textContent='Could not connect. Start Ollama and configure OLLAMA_ORIGINS for this website. Details: '+e.message;}});
+ }
  async function requestAiClassification(text,base){
   const cfg=window.REZE_AI_CONFIG||{};if(!cfg.endpoint)throw new Error('AI classification is not configured.');
   const response=await fetch(cfg.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({task:'classify_resume',sourceText:String(text).slice(0,100000),schemaVersion:2,required:{preserveAllFacts:true,noFabrication:true,returnEvidence:true}})});
@@ -178,7 +197,7 @@
     ${status}<p>REZE has prepared an editable resume draft. High-confidence fields can be used immediately; check uncertain fields and missing information before approval. Original content remains available separately.</p><div class="rr-row"><span class="rr-status">Missing: ${esc((quality?.missingFields||[]).join(', ')||'None detected')}</span><span class="rr-status">Low confidence: ${esc(String(quality?.needsReview||0))}</span></div>
     <div class="rr-evidence-grid">${Object.entries(evidence||{}).map(([field,item])=>`<div class="rr-evidence"><span>${esc(field.replace(/^section:/,''))}</span><b class="rr-${esc(item.confidence||'low')}">${esc(item.confidence||'unknown')}</b></div>`).join('')||'<span class="rr-status">No field evidence available.</span>'}</div>
     <details class="rr-raw-data"><summary>Advanced: inspect or edit structured resume data</summary><textarea id="rrJson" spellcheck="false" aria-label="Extracted resume data">${esc(JSON.stringify(data,null,2))}</textarea></details>
-    <div class="rr-row"><label>Resume template <select id="rrTemplate"><option value="modern">Modern</option><option value="classic">Classic</option><option value="minimal">Minimal</option><option value="technical">Technical</option><option value="executive">Executive</option><option value="compact">Compact</option><option value="creative">Creative</option></select></label><label>Import destination <select id="rrDestination"><option value="new">Create a new resume</option><option value="merge">Merge into the currently open resume</option></select></label><label><input id="rrAiConsent" type="checkbox" ${window.REZE_AI_CONFIG?.endpoint?"":"disabled"}> Allow optional AI classification for this import</label><button type="button" id="rrAiAnalyse" ${window.REZE_AI_CONFIG?.endpoint?"":"disabled"}>Analyse with AI</button><span id="rrAiStatus" class="rr-status">${window.REZE_AI_CONFIG?.endpoint?"AI is optional and requires your consent.":"AI backend not configured; rules-based classification remains available."}</span></div>
+    <div class="rr-row"><label>Resume template <select id="rrTemplate"><option value="modern">Modern</option><option value="classic">Classic</option><option value="minimal">Minimal</option><option value="technical">Technical</option><option value="executive">Executive</option><option value="compact">Compact</option><option value="creative">Creative</option></select></label><label>Import destination <select id="rrDestination"><option value="new">Create a new resume</option><option value="merge">Merge into the currently open resume</option></select></label><label><input id="rrAiConsent" type="checkbox"> I consent to send extracted resume text to my local Ollama model for this import</label><button type="button" id="rrAiAnalyse">Analyse with free local AI</button><span id="rrAiStatus" class="rr-status">Local AI is optional. Configure Ollama in Settings; rules-based results remain available.</span></div>
     <div class="rr-row"><div id="rrTemplatePreview" class="rr-status">Template mapping preview will appear here.</div></div><div id="rrConflictPanel" hidden><p><b>Resolve top-level field conflicts</b> — choose which version to keep for each populated field.</p><div class="rr-conflicts" id="rrConflicts"></div><p class="rr-warning">Repeating entries will be added as separate entries; possible duplicates are not merged automatically.</p></div>
     <div class="rr-row" style="justify-content:space-between"><span class="rr-status">Nothing is applied until you approve this review.</span><div class="rr-row" style="margin:0"><button type="button" id="rrCancel">Cancel import</button><button type="button" class="primary" id="rrApprove">Approve & import</button></div></div>
    </section>`;
@@ -190,8 +209,8 @@
    const aiConsent=$('#rrAiConsent',backdrop),aiButton=$('#rrAiAnalyse',backdrop),aiStatus=$('#rrAiStatus',backdrop);
    if(aiButton)aiButton.addEventListener('click',async()=>{
     if(!aiConsent?.checked){aiStatus.textContent='Please provide consent for this import before sending resume text.';return;}
-    aiButton.disabled=true;aiStatus.textContent='Sending extracted text to the configured AI service…';
-    try{const current=getImported();const suggested=await requestAiClassification(originalText,current);json.value=JSON.stringify(suggested,null,2);refreshTemplate();aiStatus.textContent='AI suggestions received. Review every field and approve manually; nothing has been applied.';}
+    aiButton.disabled=true;aiStatus.textContent='Sending extracted text to your local Ollama model…';
+    try{const current=getImported();const suggested=await requestLocalAiClassification(originalText,current);json.value=JSON.stringify(suggested,null,2);refreshTemplate();aiStatus.textContent='AI suggestions received. Review every field and approve manually; nothing has been applied.';}
     catch(err){aiStatus.textContent='AI classification failed: '+err.message;}
     finally{aiButton.disabled=false;}
    });
@@ -259,6 +278,7 @@
    if(libRaw){const list=JSON.parse(libRaw);if(Array.isArray(list)){if(list.some(r=>!r.data?.schemaVersion||r.data.schemaVersion<2))localStorage.setItem('reze-schema-v2-backup-library',libRaw);localStorage.setItem(LIB,JSON.stringify(list.map(r=>({...r,data:migrate(r.data||{})}))));}}
   }catch(err){console.warn('REZE schema migration was not applied; original stored data was retained.',err);}
  }
- window.REZEImportEngine={importFile,registry,migrate,classify,inferProfessionalContext,requestAiClassification};
+ window.REZEImportEngine={importFile,registry,migrate,classify,inferProfessionalContext,requestAiClassification,requestLocalAiClassification,configureLocalAiSettings};
+ configureLocalAiSettings();
  migrateStoredResumes();
 })();

@@ -42,3 +42,18 @@ The classifier now derives a provisional professional-domain profile from termin
 AI classification is opt-in per import. To enable it, configure `window.REZE_AI_CONFIG = { endpoint: '/api/resume/classify' }` in a deployment-controlled script loaded before `reze-import-engine.js`. The endpoint must be a server-side authenticated proxy; never put provider API keys, bearer tokens or secret headers in this static frontend. The review dialog enables the AI action only when an endpoint is configured and the user checks the consent box. The browser sends extracted text (not the original binary) to that endpoint. The backend should disclose its provider/retention policy, enforce authentication, rate limits, size limits and CSRF protection, and return JSON shaped as `{ "resume": { ...schemaVersion2ResumeFields } }`. The client validates field types and collections, keeps manual approval mandatory, and does not accept arbitrary executable content. AI suggestions remain untrusted and must be reviewed.
 
 For same-origin deployment, implement the endpoint behind your own serverless function/API gateway. GitHub Pages alone cannot host this endpoint. If it is not configured, rules-based classification continues to work without AI.
+
+## Free local AI (optional)
+
+REZE continues to work with its browser-based rules engine without any AI service. An optional Ollama connector is available for users who want local model-assisted classification without per-token API charges.
+
+1. Install Ollama from https://ollama.com/ on the same computer running the browser.
+2. Download a model, for example: `ollama pull llama3.2`.
+3. Start Ollama. For a website hosted on GitHub Pages, configure Ollama's allowed origins (`OLLAMA_ORIGINS`) to include the exact REZE site origin, then restart Ollama. Do not use a wildcard on an internet-exposed service and do not expose the Ollama port publicly.
+4. In REZE, open Settings → Free local AI, enter `http://localhost:11434` and the installed model name, save, then test the connection.
+5. During an import, explicitly tick the local-AI consent checkbox and choose **Analyse with free local AI**. Only extracted text is sent to the configured local Ollama endpoint. The original uploaded file is not sent.
+
+Local model quality and speed depend on the user's hardware and selected model. Browser-to-localhost requests may be blocked by browser security/CORS settings; rules-based parsing remains available if that happens. No model is bundled with REZE and no AI API key is required.
+
+## Premium feature menu
+The sidebar includes a Premium features dropdown showing planned optional upgrades. These are informational placeholders only: no checkout, subscription, payment processing, or paid cloud AI is enabled in this build.
