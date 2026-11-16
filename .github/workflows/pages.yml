@@ -25,6 +25,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check reze-import-engine.js
+          node --check enhancements.js
+          node --check reze-v2.js
+          node --check reze-phase2.js
+          node --check reze-page-preview.js
+          node --check api/resume/classify.js
+
+      - name: Run resume import tests
+        run: |
+          node import-engine.test.cjs
+          node groq-api.test.cjs
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
