@@ -57,3 +57,40 @@ Local model quality and speed depend on the user's hardware and selected model. 
 
 ## Premium feature menu
 The sidebar includes a Premium features dropdown showing planned optional upgrades. These are informational placeholders only: no checkout, subscription, payment processing, or paid cloud AI is enabled in this build.
+
+## REZE Intelligence Core — local AI options
+
+The import engine remains an independent vanilla-JavaScript module (`reze-import-engine.js`) and the resume editor is unchanged.
+
+### Free rules-based mode
+Works without AI, an API key, or a local model. This remains the fallback if either AI option is unavailable.
+
+### Browser AI (WebGPU)
+- Uses WebLLM from `https://esm.run/@mlc-ai/web-llm` and the `Qwen2.5-0.5B-Instruct-q4f16_1-MLC` model.
+- Requires a compatible browser/device with WebGPU (recent Chrome/Edge are the intended targets).
+- The model is downloaded on first use and cached by the browser. It may use substantial storage and memory; the small model is a compatibility-oriented starting point, not a guarantee of high extraction accuracy.
+- Resume text is processed locally in the browser after the user checks the per-import consent box. No REZE server receives the resume text through this option. Model assets are fetched from the configured public CDN.
+
+### Ollama mode
+- Install Ollama locally and pull a model, for example `ollama pull llama3.2`.
+- In REZE Settings, configure `http://localhost:11434` and the exact installed model name.
+- Use Ollama's allowed-origin configuration for the REZE website origin. Do not expose the Ollama port to the public internet.
+- Resume text is sent to the local Ollama service only after per-import consent.
+
+### Import workflow
+In the import review dialog, select Browser AI or Ollama, explicitly consent, and run analysis. AI output is only a suggestion: inspect the structured data and approve it manually. If WebGPU/Ollama fails, the rules-based extraction already prepared in the review remains available. The original document is retained separately.
+
+### Limitations
+This does not train a new model or guarantee parsing of every resume. Browser model compatibility, download size, device memory, layout extraction quality, and model output quality vary. The browser AI integration is opt-in and should be benchmarked on a diverse resume corpus before production claims.
+
+### Tests
+Run `node tests/import-engine.test.cjs` for the existing import-engine fixture tests. Browser WebGPU inference and live Ollama connectivity require manual testing on supported hardware.
+
+
+## Automatic Browser AI model preparation (trial)
+
+When the REZE page loads on a WebGPU-capable browser, it schedules preparation of the configured WebLLM model in the background during browser idle time. This downloads the model assets from the model distribution host used by WebLLM; the weights are **not** committed to the GitHub repository or served by GitHub Pages. The browser runtime caches model assets where storage permits, and REZE requests persistent browser storage where supported. Browser storage may still be cleared or evicted by the browser or user.
+
+Users can disable automatic preparation in Settings → Free browser AI, or manually prepare/retry it there. The download can consume hundreds of MB or more and uses the user's internet connection. If WebGPU is unavailable, model preparation fails, or the cache is unavailable, the rules-based parser remains available and Ollama can still be configured. Model preparation does not send resume contents; resume text is sent to local AI inference only after the user explicitly consents during that import.
+
+This is a trial configuration: actual download size, first-load time, caching behaviour and inference performance must be measured on real devices before a public performance claim is made.
