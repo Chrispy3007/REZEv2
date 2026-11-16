@@ -12,8 +12,12 @@
   // Add a distinct import destination in the primary navigation.
   const nav = $('#nav');
   if (nav && !nav.querySelector('[data-view="import"]')) {
-    const b=document.createElement('button'); b.className='nav-item'; b.dataset.view='import'; b.innerHTML='<span class="nav-icon">⇧</span><span>Import Resume</span>'; nav.append(b);
-    b.addEventListener('click', () => $('#importFile')?.click());
+    const b=document.createElement('button'); b.className='nav-item'; b.type='button'; b.dataset.view='upload'; b.innerHTML='<span class="nav-icon">⇧</span><span>Import Resume</span>'; nav.append(b);
+    b.addEventListener('click', () => {
+      // Open the real upload view before triggering the hidden file input.
+      $('#openUpload')?.click();
+      $('#importFile')?.click();
+    });
   }
 
   // Turn the long editor into guided section navigation while retaining the live preview.
