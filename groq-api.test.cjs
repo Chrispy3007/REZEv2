@@ -97,7 +97,7 @@ const modelResume = {
     assert.equal(sentRequests[0].messages[1].role, 'user');
     assert.match(sentRequests[0].messages[1].content, /Project: Cloud Delivery Platform/);
     assert.equal(sentRequests[0].messages[2].role, 'assistant');
-    assert.match(sentRequests[0].messages[3].content, /Category \\| Skills/);
+    assert.ok(sentRequests[0].messages[3].content.includes('Category | Skills'));
     assert.match(sentRequests[0].messages[5].content, /Cluster Health Dashboard/);
     for (const index of [2, 4, 6]) {
       const example = JSON.parse(sentRequests[0].messages[index].content);
@@ -123,7 +123,7 @@ const modelResume = {
     assert.equal(sentRequests[1].response_format.type, 'json_schema');
     assert.equal(sentRequests[2].response_format.type, 'json_object');
     assert.equal(sentRequests[2].messages.length, 8);
-    assert.match(sentRequests[2].messages[3].content, /Category \\| Skills/);
+    assert.ok(sentRequests[2].messages[3].content.includes('Category | Skills'));
     assert.match(sentRequests[2].messages[0].content, /valid JSON only/i);
 
     const blocked = response();
