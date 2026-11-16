@@ -1,6 +1,7 @@
 (() => {
 'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const uploadInput=$('#importFile');
 const KEY='reze-js-resume-v1';
 const blank=()=>({name:'',title:'',email:'',phone:'',location:'',links:'',summary:'',skills:'',experience:[],education:[],extras:[],skillsGroups:[],customSections:[],previewHtmlOverride:'',sectionOrder:['summary','experience','education','skills','extras'],hiddenSections:[],template:'modern',accent:'#b9a4ff'});
 let data=blank(), timer;
@@ -226,15 +227,22 @@ async function renderFileLibrary(){
  host.innerHTML=files.map(f=>{const ext=f.name.split('.').pop().toUpperCase(),checked=selectedUploadFileIds.has(f.id);return `<div class="upload-file-card ${selectedFileId===f.id?'is-selected':''} ${checked?'is-bulk-selected':''}" data-file-row="${f.id}">${uploadManageMode?`<label class="upload-file-check" aria-label="Select ${escapeHTML(f.name)}"><input type="checkbox" data-select-upload="${f.id}" ${checked?'checked':''}></label>`:''}<div class="upload-file-icon">${escapeHTML(ext)}</div><div class="upload-file-info"><b>${escapeHTML(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.createdAt).toLocaleString()}</small><small class="file-substatus">Original stored locally · editable copy stored separately</small></div>${uploadManageMode?'':`<button class="mini-tool" data-download-file="${f.id}" type="button">Download</button>`}</div>`;}).join('');
  $('#uploadFileActions').hidden=uploadManageMode||!selectedFileId;updateUploadSelectionUI(files);
 }
+async function importDocument(file,ext,record){
+ if(!window.REZEImportEngine)throw new Error('The import engine did not initialise. Please refresh the page and try again.');
+ return await window.REZEImportEngine.importFile(file,ext,record,{
+  progress:(pct,status)=>setUploadProgress(pct,status),
+  showOriginal:async()=>{await renderUploadedOriginal(file,ext==='json'||ext==='txt'?'txt':ext);},
+  showEditable:(html,format,title)=>setUploadedEditable(html,format,title),
+  switchView
+ });
+}
 async function handleChosenFile(file){
  if(!file)return;
  if(file.size>20*1024*1024){alert('Please choose a file smaller than 20 MB.');return;}
  const name=file.name.toLowerCase(),ext=name.split('.').pop();if(!['json','txt','docx','pdf'].includes(ext)){alert('Please select a PDF, DOCX, TXT or JSON file.');return;}$('#uploadProgress').classList.remove('has-error');beginUploadProgress(file);
  try{
   const record=await storeOriginalFile(file);setUploadProgress(32,'Original file stored securely in this browser');selectedFileId=record.id;selectedUploadFileIds.clear();await renderFileLibrary();$('#saveState').textContent='✓ Original safely stored';
-  if(ext==='json'){setUploadProgress(55,'Reading JSON file');const raw=await file.text();setUploadProgress(78,'Applying resume data');importJSON(JSON.parse(raw));await renderUploadedOriginal(file,'txt');setUploadedEditable('<pre>'+escapeHTML(raw)+'</pre>','json',file.name);switchView('upload');}
-  else if(ext==='txt'){setUploadProgress(58,'Reading text file');const raw=await file.text();setUploadProgress(78,'Preparing editable content');data.summary=raw;fillFields();renderAll();queueSave();await renderUploadedOriginal(file,'txt');setUploadedEditable('<pre>'+escapeHTML(raw)+'</pre>','txt',file.name);switchView('upload');}
-  else if(ext==='docx'||ext==='pdf'){await importDocument(file,ext,record);}
+  if(ext==='json'||ext==='txt'||ext==='docx'||ext==='pdf'){setUploadProgress(48,'Extracting document content');const imported=await importDocument(file,ext,record);if(imported?.cancelled){finishUploadProgress('Import cancelled');return;}}
   else throw new Error('Please select a PDF, DOCX, TXT or JSON file.');
   await renderFileLibrary();finishUploadProgress('Upload complete · '+file.name);$('#saveState').textContent='✓ Imported locally';
  }catch(err){console.error(err);failUploadProgress('Could not import this file');alert('Could not import this file: '+err.message+'\nThe original upload remains stored in your document library.');await renderFileLibrary();}

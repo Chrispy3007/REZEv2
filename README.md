@@ -94,3 +94,20 @@ Parsing is heuristic: resume layouts vary widely. Review the imported fields and
 - Fixed print layout positioning so the page stack is printed as separate sheets instead of screen-positioned overlays.
 
 The pagination was exercised in Chromium with long summaries and multi-page experience lists. A4 screen pagination and A4 PDF output were checked against the generated page count.
+
+
+## REZE Resume Understanding & Mapping Engine
+
+The import workflow is review-first. PDF, DOCX, TXT and JSON imports are extracted locally in the browser, classified with deterministic rules, normalised into the version-2 resume model, and shown in a mandatory review dialog before applying. The uploaded original remains a separate immutable IndexedDB record.
+
+- PDF extraction tracks page numbers and reconstructs text lines using PDF coordinates. If the PDF has no usable text layer, the browser attempts English OCR with Tesseract.js.
+- DOCX extraction uses Mammoth raw text plus its HTML conversion to retain paragraph, heading, list and table-derived text order where available.
+- The classifier recognises common resume headings, contact details, experience, education, skills, projects and certifications. Low-confidence or ambiguous content is surfaced for review rather than silently discarded.
+- The review dialog allows JSON-level correction, template selection, create-new or merge-into-current workflows, and field-level choices for conflicting personal/summary fields. Repeating groups are appended as separate entries; potential duplicates are not silently combined.
+- The template registry declares supported placeholder groups for Modern, Classic, Minimal and Technical layouts. Empty fields remain empty.
+- Schema migration adds stable IDs, provenance, separate project/certification collections and an additional-information bucket. Before migration, original localStorage payloads are backed up under `reze-schema-v2-backup-current` and `reze-schema-v2-backup-library`.
+- AI classification is not connected in this static GitHub Pages build. No resume data is sent to an external AI provider. The opt-in control is intentionally disabled until a secure authenticated backend/proxy and provider disclosure are configured.
+
+### Import-engine limitations and verification
+
+This is client-side extraction and structured mapping, not exact reproduction of a source document's visual layout. Multi-column PDF reading order can still need manual correction; DOCX tables may be flattened into text; OCR currently uses English; and extraction confidence is a heuristic review aid, not a measured accuracy guarantee. The uploaded ZIP did not include a representative test corpus, so extraction accuracy across the ten proposed document categories has not been benchmarked. A secure AI service cannot be deployed solely in static GitHub Pages without a backend.
