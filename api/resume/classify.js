@@ -125,37 +125,52 @@ module.exports=async function handler(req,res){
     response_format:{type:'json_schema',json_schema:{name:'reze_resume',strict:true,schema:responseSchema}},
     messages:[{role:'system',content:system},{role:'user',content:userMessage}]
   };
-  let upstream;
-  try{
-    upstream=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+  async function callGroq(payload){
+    const response=await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',
       headers:{Authorization:'Bearer '+process.env.GROQ_API_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify(requestPayload)
+      body:JSON.stringify(payload)
     });
-  }catch(error){
-    console.error('REZE Groq network request failed:',error?.message||error);
-    return send(res,502,{error:'Vercel could not connect to the Groq API. Check the Vercel function logs and outbound request status.'});
+    const data=await response.json().catch(()=>({}));
+    return {response,data};
   }
-  const result=await upstream.json().catch(()=>({}));
-  if(!upstream.ok){
-    const apiError=result.error||{};
-    const detail=text(apiError.message||'Groq rejected the request.',500);
-    console.error('REZE Groq API rejected request:',JSON.stringify({
-      status:upstream.status,
-      type:apiError.type||null,
-      code:apiError.code||null,
-      param:apiError.param||null,
-      message:detail,
-      hasFailedGeneration:typeof apiError.failed_generation==='string'
-    }));
-    const message=upstream.status===429
-      ?'Groq is rate-limiting requests. Wait briefly and retry.'
-      :upstream.status===400
-        ?'Groq rejected the structured-output request (HTTP 400): '+detail
-        :'Groq API returned HTTP '+upstream.status+': '+detail;
-    return send(res,upstream.status===429?429:502,{error:message});
+  function failedOutputShape(value){
+    if(typeof value!=='string')return {present:false};
+    const s=value.trim();
+    const info={present:true,length:s.length,startsWithJson:s.startsWith('{')||s.startsWith('['),hasMarkdownFence:/^```/i.test(s)};
+    try{const p=JSON.parse(s);info.parsedAsJson=true;info.topLevelKeys=p&&typeof p==='object'&&!Array.isArray(p)?Object.keys(p).slice(0,30):[];if(p?.resume&&typeof p.resume==='object')info.resumeFieldTypes=Object.fromEntries(Object.entries(p.resume).map(([k,v])=>[k,Array.isArray(v)?'array':v===null?'null':typeof v]));}
+    catch{info.parsedAsJson=false;}
+    return info;
   }
-  const choice=result.choices?.[0];
+  function logProviderError(prefix,response,data){
+    const e=data?.error||{};
+    console.error(prefix,JSON.stringify({status:response.status,type:e.type||null,code:e.code||null,param:e.param||null,message:text(e.message||'Groq rejected the request.',500),failedGeneration:failedOutputShape(e.failed_generation)}));
+  }
+  let result;
+  try{result=await callGroq(requestPayload);}
+  catch(error){console.error('REZE Groq network request failed:',error?.message||error);return send(res,502,{error:'Vercel could not connect to the Groq API. Check the Vercel function logs and outbound request status.'});}
+  const firstError=result.data?.error||{};
+  const needsJsonFallback=!result.response.ok&&(firstError.code==='json_validate_failed'||/failed to generate json|generated json does not match/i.test(String(firstError.message||'')));
+  if(needsJsonFallback){
+    console.warn('REZE Groq strict-schema generation was rejected; retrying once in JSON-object mode.');
+    const fallbackPayload={...requestPayload,response_format:{type:'json_object'},messages:[
+      {role:'system',content:system+' Output valid JSON only, with exactly one top-level resume property. Use every field from the resume response structure.'},
+      {role:'user',content:userMessage}
+    ]};
+    try{result=await callGroq(fallbackPayload);}
+    catch(error){console.error('REZE Groq JSON fallback network request failed:',error?.message||error);return send(res,502,{error:'Groq rejected strict structured output and the JSON fallback could not connect. Your browser-based draft is unchanged.'});}
+    if(!result.response.ok){
+      logProviderError('REZE Groq JSON fallback was rejected:',result.response,result.data);
+      const detail=text(result.data?.error?.message||'Groq could not produce a JSON response.',400);
+      return send(res,result.response.status===429?429:502,{error:'Groq could not complete resume analysis after retrying JSON mode. '+detail+' Your browser-based draft is unchanged.'});
+    }
+  }else if(!result.response.ok){
+    logProviderError('REZE Groq API rejected request:',result.response,result.data);
+    const detail=text(firstError.message||'Groq rejected the request.',500);
+    return send(res,result.response.status===429?429:502,{error:result.response.status===429?'Groq is rate-limiting requests. Wait briefly and retry.':'Groq API returned HTTP '+result.response.status+': '+detail});
+  }
+  const resultBody=result.data;
+  const choice=resultBody.choices?.[0];
   const message=choice?.message;
   if(message?.refusal)return send(res,422,{error:'Groq declined to process this resume. The browser-based draft is still available.'});
   if(choice?.finish_reason==='length')return send(res,502,{error:'Groq reached its output-token limit before finishing the resume. Try a shorter or simpler source document.'});
@@ -170,7 +185,7 @@ module.exports=async function handler(req,res){
     console.error('REZE Groq returned non-JSON content:',error?.message||error);
     return send(res,502,{error:'Groq returned a response that was not valid JSON. The browser-based draft is unchanged.'});
   }
-  try{return send(res,200,validate(parsed.resume));}
+  try{return send(res,200,validate(parsed.resume||parsed));}
   catch(error){
     console.error('REZE Groq response failed REZE validation:',error?.message||error);
     return send(res,502,{error:'Groq returned resume data that did not match REZE’s import fields: '+text(error?.message||'Invalid response.',250)});
