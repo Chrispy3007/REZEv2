@@ -70,20 +70,27 @@ $('#addSkillGroup').onclick=()=>{ensureSkillGroups();data.skillsGroups.push({hea
 $('#useTemplate')?.addEventListener('click',()=>{renderPreview();switchView('editor');});
 const THEME_KEY='reze-theme-v1';
 function setTheme(theme){
-  const light=theme==='light';
+  const light=String(theme)==='light';
   document.body.classList.toggle('light',light);
   document.documentElement.dataset.theme=light?'light':'dark';
+  document.documentElement.style.colorScheme=light?'light':'dark';
   const appearance=$('#appearance'),toggle=$('#themeToggle');
   if(appearance) appearance.value=light?'light':'dark';
-  if(toggle){toggle.textContent=light?'☾':'☼';toggle.setAttribute('aria-label',light?'Switch to dark mode':'Switch to light mode');toggle.title=light?'Switch to dark mode':'Switch to light mode';}
-  try{localStorage.setItem(THEME_KEY,light?'light':'dark')}catch{}
+  if(toggle){
+    toggle.textContent=light?'☾':'☼';
+    toggle.setAttribute('aria-label',light?'Switch to dark mode':'Switch to light mode');
+    toggle.setAttribute('aria-pressed',String(light));
+    toggle.title=light?'Switch to dark mode':'Switch to light mode';
+  }
+  try{localStorage.setItem(THEME_KEY,light?'light':'dark');}catch(error){console.warn('REZE could not persist the appearance preference.',error);}
+  return light?'light':'dark';
 }
 let initialTheme='dark';
-try{initialTheme=localStorage.getItem(THEME_KEY)||'dark'}catch{}
+try{initialTheme=localStorage.getItem(THEME_KEY)||'dark';}catch{}
 setTheme(initialTheme);
-$('#themeToggle').addEventListener('click',()=>setTheme(document.body.classList.contains('light')?'dark':'light'));
-$('#appearance').addEventListener('change',e=>setTheme(e.target.value));
-$('#cursorSize').oninput=e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px');
+$('#themeToggle')?.addEventListener('click',()=>setTheme(document.body.classList.contains('light')?'dark':'light'));
+$('#appearance')?.addEventListener('change',e=>setTheme(e.target.value));
+$('#cursorSize')?.addEventListener('input',e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px'));
 $('#exportPdf').onclick=$('#printBtn').onclick=()=>{renderPreview();window.print();};
 $('#downloadOriginal').onclick=downloadOriginalFile;
 $('#downloadWorking').onclick=downloadWorkingCopy;
@@ -246,25 +253,75 @@ async function importDocument(file,ext,record){
   switchView
  });
 }
-async function handleChosenFile(file){
- if(!file)return;
- if(file.size>20*1024*1024){alert('Please choose a file smaller than 20 MB.');return;}
- const name=file.name.toLowerCase(),ext=name.split('.').pop();if(!['json','txt','docx','pdf'].includes(ext)){alert('Please select a PDF, DOCX, TXT or JSON file.');return;}$('#uploadProgress').classList.remove('has-error');beginUploadProgress(file);
- try{
-  const record=await storeOriginalFile(file);setUploadProgress(32,'Original file stored securely in this browser');selectedFileId=record.id;selectedUploadFileIds.clear();await renderFileLibrary();$('#saveState').textContent='✓ Original safely stored';
-  if(ext==='json'||ext==='txt'||ext==='docx'||ext==='pdf'){setUploadProgress(48,'Extracting document content');const imported=await importDocument(file,ext,record);if(imported?.cancelled){finishUploadProgress('Import cancelled');return;}}
-  else throw new Error('Please select a PDF, DOCX, TXT or JSON file.');
-  await renderFileLibrary();finishUploadProgress('Upload complete · '+file.name);$('#saveState').textContent='✓ Imported locally';
- }catch(err){console.error(err);failUploadProgress('Could not import this file');alert('Could not import this file: '+err.message+'\nThe original upload remains stored in your document library.');await renderFileLibrary();}
+let uploadInProgress=false;
+function openUploadPicker(){
+ if(uploadInProgress)return;
+ switchView('upload');
+ uploadInput.value='';
+ uploadInput.click();
 }
-$('#openUpload').onclick=()=>switchView('upload');
-$('#browseFiles').onclick=()=>uploadInput.click();
-$('#uploadDropzone').onclick=e=>{if(e.target.closest('button'))return;uploadInput.click();};
-$('#uploadDropzone').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();uploadInput.click();}};
-['dragenter','dragover'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();$('#uploadDropzone').classList.add('drag-over');}));
+window.REZEOpenUploadPicker=openUploadPicker;
+async function handleChosenFile(file){
+ if(!file||uploadInProgress)return;
+ const fileName=String(file.name||'resume').trim();
+ const ext=(fileName.split('.').pop()||'').toLowerCase();
+ const mimeMap={'application/pdf':'pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx','text/plain':'txt','application/json':'json'};
+ const type=['pdf','docx','txt','json'].includes(ext)?ext:mimeMap[file.type]||'';
+ const failBeforeStart=message=>{
+   $('#uploadProgress').classList.remove('has-error');
+   setUploadProgress(0,message);
+   failUploadProgress(message);
+   alert(message);
+ };
+ if(!fileName){failBeforeStart('Choose a file with a valid filename.');return;}
+ if(!file.size){failBeforeStart('The selected file is empty. Please choose another file.');return;}
+ if(file.size>20*1024*1024){failBeforeStart('This file is larger than REZE’s 20 MB limit. Please choose a smaller file.');return;}
+ if(!type){failBeforeStart('Unsupported file type. Please select a PDF, DOCX, TXT or JSON file.');return;}
+ if(!window.indexedDB){failBeforeStart('This browser does not allow local file storage. Enable site storage or use a supported browser.');return;}
+ uploadInProgress=true;
+ const pickerButtons=[$('#openUpload'),$('#browseFiles'),$('#dashboardImport'),...$$('#nav [data-reze-import-nav]')].filter(Boolean);
+ pickerButtons.forEach(button=>button.disabled=true);
+ $('#uploadProgress').classList.remove('has-error');
+ beginUploadProgress(file);
+ try{
+   const record=await storeOriginalFile(file);
+   setUploadProgress(32,'Original file stored in this browser');
+   selectedFileId=record.id;selectedUploadFileIds.clear();
+   await renderFileLibrary();
+   $('#saveState').textContent='✓ Original safely stored';
+   setUploadProgress(48,'Extracting document content');
+   const imported=await importDocument(file,type,record);
+   if(imported?.cancelled){finishUploadProgress('Import cancelled · original kept in Your files');return;}
+   await renderFileLibrary();
+   finishUploadProgress('Upload complete · '+fileName);
+   $('#saveState').textContent='✓ Imported locally';
+ }catch(err){
+   console.error('REZE upload failed:',err);
+   const message=err?.message||'Unexpected error while reading this file.';
+   failUploadProgress('Upload failed: '+message);
+   alert('REZE could not import this file: '+message+'\n\nThe original file may still be available in Your files if it was stored successfully.');
+   try{await renderFileLibrary();}catch(libraryError){console.error('Could not refresh the local file library:',libraryError);}
+ }finally{
+   uploadInProgress=false;
+   pickerButtons.forEach(button=>button.disabled=false);
+ }
+}
+$('#openUpload').addEventListener('click',openUploadPicker);
+$('#browseFiles').addEventListener('click',openUploadPicker);
+$('#uploadDropzone').addEventListener('click',e=>{if(e.target.closest('button'))return;openUploadPicker();});
+$('#uploadDropzone').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openUploadPicker();}});
+['dragenter','dragover'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();if(!uploadInProgress)$('#uploadDropzone').classList.add('drag-over');}));
 ['dragleave','drop'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();$('#uploadDropzone').classList.remove('drag-over');}));
-$('#uploadDropzone').addEventListener('drop',e=>{const files=[...e.dataTransfer.files];if(files.length)handleChosenFile(files[0]);});
-uploadInput.addEventListener('change',e=>{const f=e.target.files[0];if(f)handleChosenFile(f);e.target.value='';});
+$('#uploadDropzone').addEventListener('drop',e=>{
+ e.preventDefault();
+ const file=e.dataTransfer?.files?.[0];
+ if(file){switchView('upload');handleChosenFile(file);}
+});
+uploadInput.addEventListener('change',e=>{
+ const file=e.target.files?.[0];
+ e.target.value='';
+ if(file)handleChosenFile(file);
+});
 $('#toggleFileManage').onclick=async()=>{uploadManageMode=!uploadManageMode;selectedUploadFileIds.clear();await renderFileLibrary();};
 $('#selectAllUploads').onchange=async e=>{const files=await listOriginalFiles();selectedUploadFileIds.clear();if(e.target.checked)files.forEach(f=>selectedUploadFileIds.add(f.id));await renderFileLibrary();};
 $('#deleteSelectedUploads').onclick=async()=>{const ids=[...selectedUploadFileIds];if(!ids.length)return;if(!confirm(`Delete ${ids.length} selected original file${ids.length===1?'':'s'} from this browser? Your current resume draft will remain.`))return;await deleteOriginalFiles(ids);if(ids.includes(selectedFileId))selectedFileId=null;selectedUploadFileIds.clear();await renderFileLibrary();};
