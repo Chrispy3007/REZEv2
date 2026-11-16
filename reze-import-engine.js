@@ -138,7 +138,7 @@
   const mark=(field,items,confidence='medium',reason='')=>{evidence[field]={confidence,reason,sources:(items||[]).map(x=>({text:x.text,page:x.page??null,source:x.source||'text'}))};};
   const headingDefs={summary:/^(professional\s+summary|summary|profile|career\s+objective|objective|about\s+me)$/i,experience:/^(professional\s+experience|work\s+experience|employment\s+history|experience|work\s+history|career\s+history)$/i,education:/^(education|academic\s+background|qualifications|academic\s+qualifications)$/i,skills:/^(skills|core\s+technical\s+skills|technical\s+skills|core\s+competencies|competencies|tools\s*(?:&|and)\s*technologies|areas\s+of\s+expertise|technical\s+expertise)$/i,certifications:/^(certifications?|licenses?|professional\s+certifications?|training|courses)$/i,projects:/^(projects?|selected\s+projects|personal\s+projects)$/i};
   const sections={intro:[]};let active='intro';const unknown=[];
-  for(const l of lines){const raw=clean(l.text).replace(/\s*[:：]\s*$/,'').replace(/\s*[-–—]\s*$/,'').replace(/\s+/g,' ').trim();const key=Object.keys(headingDefs).find(k=>headingDefs[k].test(raw));if(key){active=key;sections[key]??=[];mark('section:'+key,[l],'high','Recognised section heading');continue;}
+  for(const l of lines){const raw=clean(l.text).replace(/[\s:：\-–—]+$/,'').replace(/\s+/g,' ').trim();const key=Object.keys(headingDefs).find(k=>headingDefs[k].test(raw));if(key){active=key;sections[key]??=[];mark('section:'+key,[l],'high','Recognised section heading');continue;}
    // Detect common unambiguous section labels while retaining all content for review.
    if(/^(awards?|honou?rs?|languages?|publications?|volunteer(?:ing)?|interests?|additional information|references|objective|achievements?)\s*:?$/i.test(raw)){active='unknown_'+raw.toLowerCase().replace(/[^a-z]+/g,'_');sections[active]??=[];mark('section:'+active,[l],'medium','Unmapped section heading');continue;}
    (sections[active]??(sections[active]=[])).push(l);
@@ -225,7 +225,7 @@
    if(hasLabeledProjects){
     const out=[];let cur=null;
     const ensure=()=>{if(!cur)cur={id:uid('exp'),role:'',company:'',start:'',end:'',details:''};return cur;};
-    const addDetail=(label,value)=>{const v=clean(value);if(v)ensure().details+=(ensure().details?'\n':'')+(label?label+': ':'')+v;};
+    const addDetail=(label,value)=>{const v=clean(value);if(v)ensure().details+=(ensure().details?'\n':'')+(label==='•'?'• ':label?label+': ':'')+v;};
     const flush=()=>{if(cur&&(cur.role||cur.company||cur.details))out.push(cur);cur=null;};
     for(const l of arr){
      const raw=clean(l.text);if(!raw)continue;
