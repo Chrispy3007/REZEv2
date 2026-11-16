@@ -46,12 +46,29 @@
    items.sort((a,b)=>Math.abs(a.y-b.y)>2.5?b.y-a.y:a.x-b.x);
    const rows=[];for(const item of items){let row=rows.find(x=>Math.abs(x.y-item.y)<=2.5);if(!row){row={y:item.y,items:[]};rows.push(row)}row.items.push(item)}
    rows.sort((a,b)=>b.y-a.y);
-   // Detect a stable two-column layout from the largest horizontal gap in text rows.
-   const gaps=[];rows.forEach(row=>{const xs=row.items.map(i=>i.x).sort((a,b)=>a-b);for(let j=1;j<xs.length;j++)if(xs[j]-xs[j-1]>65)gaps.push(xs[j]-xs[j-1]);});
-   const split=gaps.length?Math.max(...gaps):0;const twoColumn=split>105&&rows.filter(r=>r.items.some(i=>i.x<Math.min(...r.items.map(z=>z.x))+split/2)&&r.items.some(i=>i.x>Math.min(...r.items.map(z=>z.x))+split/2)).length>=3;
+   // Detect columns, while preserving paired rows in two-column data tables.
+   const gaps=[];rows.forEach(row=>{const rowXs=row.items.map(i=>i.x).sort((a,b)=>a-b);for(let j=1;j<rowXs.length;j++)if(rowXs[j]-rowXs[j-1]>65)gaps.push(rowXs[j]-rowXs[j-1]);});
+   const split=gaps.length?Math.max(...gaps):0;
+   const xs=rows.flatMap(r=>r.items.map(i=>i.x)).sort((a,b)=>a-b);
+   let best={gap:0,mid:xs.length?(xs[0]+xs[xs.length-1])/2:0};
+   for(let j=1;j<xs.length;j++){const gap=xs[j]-xs[j-1];if(gap>best.gap)best={gap,mid:(xs[j]+xs[j-1])/2};}
+   const twoColumn=split>105&&rows.filter(r=>r.items.some(i=>i.x<best.mid)&&r.items.some(i=>i.x>=best.mid)).length>=3;
    let pageLines=[];
-   if(twoColumn){const xs=rows.flatMap(r=>r.items.map(i=>i.x)).sort((a,b)=>a-b);const minX=xs[0],maxX=xs[xs.length-1];let best={gap:0,mid:(minX+maxX)/2};for(let j=1;j<xs.length;j++){const g=xs[j]-xs[j-1];if(g>best.gap)best={gap:g,mid:(xs[j]+xs[j-1])/2};}const left=[],right=[];rows.forEach(r=>r.items.forEach(i=>(i.x<best.mid?left:right).push(i)));const makeColumn=arr=>{const rr=[];arr.forEach(i=>{let row=rr.find(x=>Math.abs(x.y-i.y)<=2.5);if(!row){row={y:i.y,items:[]};rr.push(row)}row.items.push(i)});return rr.sort((a,b)=>b.y-a.y).map(r=>r.items.sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean)};pageLines=[...makeColumn(left),...makeColumn(right)];}
-   else pageLines=rows.map(r=>r.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean);
+   if(twoColumn){
+    const pairedRows=rows.map(r=>{
+     const left=r.items.filter(i=>i.x<best.mid).sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ').replace(/\s+/g,' ').trim();
+     const right=r.items.filter(i=>i.x>=best.mid).sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ').replace(/\s+/g,' ').trim();
+     return {left,right};
+    });
+    const paired=pairedRows.filter(r=>r.left&&r.right);
+    const tableLike=paired.filter(r=>r.left.length<=72&&r.right.length>=18).length>=5&&paired.length>=5;
+    if(tableLike)pageLines=pairedRows.map(r=>r.left&&r.right?r.left+' : '+r.right:(r.left||r.right)).filter(Boolean);
+    else{
+     const left=[],right=[];rows.forEach(r=>r.items.forEach(i=>(i.x<best.mid?left:right).push(i)));
+     const makeColumn=arr=>{const rr=[];arr.forEach(i=>{let row=rr.find(x=>Math.abs(x.y-i.y)<=2.5);if(!row){row={y:i.y,items:[]};rr.push(row)}row.items.push(i)});return rr.sort((a,b)=>b.y-a.y).map(r=>r.items.sort((a,b)=>a.x-b.x).map(i=>i.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean)};
+     pageLines=[...makeColumn(left),...makeColumn(right)];
+    }
+   }else pageLines=rows.map(r=>r.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean);
    pages.push({page:n,lines:pageLines,twoColumn});pageLines.forEach(line=>all.push({text:line,page:n,source:'pdf-text'}));
   }
   let text=pages.map(p=>p.lines.join('\n')).join('\n\n');
@@ -121,29 +138,131 @@
   const mark=(field,items,confidence='medium',reason='')=>{evidence[field]={confidence,reason,sources:(items||[]).map(x=>({text:x.text,page:x.page??null,source:x.source||'text'}))};};
   const headingDefs={summary:/^(professional\s+summary|summary|profile|career\s+objective|objective|about\s+me)$/i,experience:/^(professional\s+experience|work\s+experience|employment\s+history|experience|work\s+history|career\s+history)$/i,education:/^(education|academic\s+background|qualifications|academic\s+qualifications)$/i,skills:/^(skills|core\s+technical\s+skills|technical\s+skills|core\s+competencies|competencies|tools\s*(?:&|and)\s*technologies|areas\s+of\s+expertise|technical\s+expertise)$/i,certifications:/^(certifications?|licenses?|professional\s+certifications?|training|courses)$/i,projects:/^(projects?|selected\s+projects|personal\s+projects)$/i};
   const sections={intro:[]};let active='intro';const unknown=[];
-  for(const l of lines){const raw=l.text.replace(/[:：]$/,'');const key=Object.keys(headingDefs).find(k=>headingDefs[k].test(raw));if(key){active=key;sections[key]??=[];mark('section:'+key,[l],'high','Recognised section heading');continue;}
+  for(const l of lines){const raw=clean(l.text).replace(/\s*[:：]\s*$/,'').replace(/\s*[-–—]\s*$/,'').replace(/\s+/g,' ').trim();const key=Object.keys(headingDefs).find(k=>headingDefs[k].test(raw));if(key){active=key;sections[key]??=[];mark('section:'+key,[l],'high','Recognised section heading');continue;}
    // Detect common unambiguous section labels while retaining all content for review.
    if(/^(awards?|honou?rs?|languages?|publications?|volunteer(?:ing)?|interests?|additional information|references|objective|achievements?)\s*:?$/i.test(raw)){active='unknown_'+raw.toLowerCase().replace(/[^a-z]+/g,'_');sections[active]??=[];mark('section:'+active,[l],'medium','Unmapped section heading');continue;}
    (sections[active]??(sections[active]=[])).push(l);
   }
-  const email=text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);if(email){d.email=email[0];mark('email',[{text:email[0]}],'high','Email pattern');}
-  const phoneCandidates=text.match(/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d[\d\s().-]{7,}\d/g)||[];const phone=phoneCandidates.find(v=>v.replace(/\D/g,'').length>=10&&v.replace(/\D/g,'').length<=15);if(phone){d.phone=phone.trim();mark('phone',[{text:phone}],'medium','Phone number pattern; verify country/extension');}
+  const emailPattern=/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const email=text.match(emailPattern);if(email){d.email=email[0];mark('email',[{text:email[0]}],'high','Email pattern');}
+  const phonePattern=/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d[\d\s().-]{7,}\d/g;
+  const phoneCandidates=text.match(phonePattern)||[];const phone=phoneCandidates.find(v=>v.replace(/\D/g,'').length>=10&&v.replace(/\D/g,'').length<=15);if(phone){d.phone=phone.trim();mark('phone',[{text:phone}],'medium','Phone number pattern; verify country/extension');}
   const urls=[...text.matchAll(/(?:https?:\/\/|www\.)[^\s)]+/ig)].map(m=>m[0]);if(urls.length){d.links=urls.slice(0,3).join(' | ');mark('links',urls.map(text=>({text})),'high','URL pattern');}
-  const intro=(sections.intro||[]).filter(x=>!email||!x.text.includes(email[0]));
+  const intro=(sections.intro||[]).map(x=>({...x,text:clean(x.text).replace(emailPattern,' ').replace(phonePattern,' ').replace(/(?:https?:\/\/|www\.)[^\s)]+/ig,' ').replace(/\s+/g,' ').trim()})).filter(x=>x.text);
   const nameCandidates=intro.filter(x=>x.text.length>=3&&x.text.length<=65&&!/@|https?:\/\//i.test(x.text)&&!/\d{5,}/.test(x.text)&&!/[|•]/.test(x.text));
   const nameLine=nameCandidates.find(x=>/^[A-Z][A-Z .'-]+$/.test(x.text)||x.text.split(/\s+/).length>=2);
-  if(nameLine){d.name=nameLine.text.replace(/\s+/g,' ').trim();mark('name',[nameLine],'medium','Likely name line before first section heading');}
-  const titleLine=intro.find(x=>x!==nameLine&&x.text.length<130&&!/@|https?:\/\//i.test(x.text)&&(/[|]/.test(x.text)||/\b(engineer|analyst|developer|manager|consultant|specialist|professional|designer|administrator|tester|architect)\b/i.test(x.text)));
+  if(nameLine){d.name=nameLine.text.replace(/\s+/g,' ').trim();mark('name',[nameLine],'medium','Likely name line before first section heading');}  const titleLine=intro.find(x=>x!==nameLine&&x.text.length<130&&!/@|https?:\/\//i.test(x.text)&&(/[|]/.test(x.text)||/\b(engineer|analyst|developer|manager|consultant|specialist|professional|designer|administrator|tester|architect)\b/i.test(x.text)));
   if(titleLine){d.title=titleLine.text.replace(/\s*\|\s*/g,' | ');mark('title',[titleLine],'medium','Role/title wording in document header');}
   const summaryLines=sections.summary||[];if(summaryLines.length){d.summary=summaryLines.map(x=>x.text).join('\n');mark('summary',summaryLines,'high','Content located under summary heading');}
   else{const candidates=intro.filter(x=>x!==nameLine&&x!==titleLine&&x.text.length>80);if(candidates.length){d.summary=candidates.map(x=>x.text).join('\n');mark('summary',candidates,'low','Inferred from unlabelled introductory paragraph; review');}}
-  // Skills preserve heading-description pairs (e.g. "Penetration Testing: ...").
-  const skillLines=sections.skills||[],groups=[];let group=null;
-  for(const l of skillLines){const t=l.text.replace(/^[•·▪-]\s*/,'');const m=t.match(/^([^:：]{2,55})[:：]\s*(.*)$/);if(m){if(group)groups.push(group);group={id:uid('skill'),heading:m[1].trim(),description:m[2].trim()};}else if(group){group.description+=(group.description?' ':'')+t;}else{group={id:uid('skill'),heading:'Technical Skills',description:t};}}
-  if(group)groups.push(group);d.skillsGroups=groups;d.skills=groups.map(g=>[g.heading,g.description].filter(Boolean).join(': ')).join('; ');if(skillLines.length)mark('skillsGroups',skillLines,groups.some(g=>g.heading==='Technical Skills')?'medium':'high','Colon-delimited skill groups and continuation lines');
+  // Skills: support colon-delimited lists and two-column PDF skills tables.
+  const skillLines=sections.skills||[],groups=[];
+  let group=null;
+  const normalizeSkillText=value=>clean(value)
+    .replace(/\b([A-Z])\s+([a-z]{2,})\b/g,'$1$2')
+    .replace(/\b([A-Z])\s+([A-Z]{2,})\b/g,'$1$2')
+    .replace(/\s+/g,' ').trim();
+  const categoryAliases=[
+    ['Cloud Platforms',['Cloud Platforms']],
+    ['Infrastructure as Code & Automation',['Infrastructure as Code & Automation','Infrastructure as Code']],
+    ['Containers & Orchestration',['Containers & Orchestration','Containers &']],
+    ['CI/CD, SCM & GitOps',['CI/CD, SCM & GitOps','CI/CD, SCM &']],
+    ['Monitoring & Alerting',['Monitoring & Alerting','Monitoring']],
+    ['Security & DevSecOps',['Security & DevSecOps','Security &']],
+    ['Networking & DNS',['Networking & DNS','Networking &']],
+    ['Application & Backend Technologies',['Application & Backend Technologies','Application &']],
+    ['Messaging, Caching & Databases',['Messaging, Caching & Databases','Messaging, Caching &']],
+    ['Platform & Production Operations',['Platform & Production Operations','Platform &']]
+  ];
+  const wrappedCategoryContinuations=[
+    {match:/^&\s*Automation\b/i,from:/^Infrastructure as Code$/i,to:'Infrastructure as Code & Automation'},
+    {match:/^Orchestration\b/i,from:/^Containers\s*&$/i,to:'Containers & Orchestration'},
+    {match:/^GitOps\b/i,from:/^CI\/CD,\s*SCM\s*&$/i,to:'CI/CD, SCM & GitOps'},
+    {match:/^&\s*Alerting\b/i,from:/^Monitoring$/i,to:'Monitoring & Alerting'},
+    {match:/^DevSecOps\b/i,from:/^Security\s*&$/i,to:'Security & DevSecOps'},
+    {match:/^&\s*DNS\b/i,from:/^Networking$/i,to:'Networking & DNS'},
+    {match:/^Backend Technologies\b/i,from:/^Application\s*&$/i,to:'Application & Backend Technologies'},
+    {match:/^Databases\b/i,from:/^Messaging,\s*Caching\s*&$/i,to:'Messaging, Caching & Databases'},
+    {match:/^Production Operations\b/i,from:/^Platform\s*&$/i,to:'Platform & Production Operations'}
+  ];
+  const appendSkillText=value=>{const v=normalizeSkillText(value);if(!v)return;if(!group)group={id:uid('skill'),heading:'Technical Skills',description:v};else group.description+=(group.description?' ':'')+v;};
+  for(const l of skillLines){
+    let t=normalizeSkillText(l.text.replace(/^[•·▪-]\s*/,''));if(!t||/^category\s*:?[ \t]*skills?$/i.test(t))continue;
+    const colon=t.match(/^([^:：]{2,65})[:：]\s*(.*)$/);
+    const left=colon?normalizeSkillText(colon[1]):t;
+    const right=colon?normalizeSkillText(colon[2]):'';
+    const continuation=wrappedCategoryContinuations.find(x=>group&&x.from.test(group.heading)&&x.match.test(left));
+    if(continuation){
+      group.heading=continuation.to;
+      if(right)appendSkillText(right);
+      else appendSkillText(t.replace(continuation.match,''));
+      continue;
+    }
+    const category=categoryAliases.find(([,aliases])=>aliases.some(alias=>left.toLowerCase()===alias.toLowerCase()||left.toLowerCase().startsWith(alias.toLowerCase()+' ')));
+    if(category){
+      const alias=category[1].sort((a,b)=>b.length-a.length).find(a=>left.toLowerCase()===a.toLowerCase()||left.toLowerCase().startsWith(a.toLowerCase()+' '));
+      let remainder=left.slice(alias.length).trim();
+      if(remainder&&right)remainder+=' '+right;else if(right)remainder=right;
+      if(group)groups.push(group);
+      group={id:uid('skill'),heading:category[0],description:remainder};
+      continue;
+    }
+    if(colon){
+      if(group)groups.push(group);
+      group={id:uid('skill'),heading:left,description:right};
+      continue;
+    }
+    appendSkillText(t);
+  }
+  if(group)groups.push(group);
+  d.skillsGroups=groups;
+  d.skills=groups.map(g=>[g.heading,g.description].filter(Boolean).join(': ')).join('; ');
+  if(skillLines.length)mark('skillsGroups',skillLines,groups.some(g=>g.heading==='Technical Skills')?'medium':'high','Parsed colon-delimited skill groups and paired PDF table rows; verify any wrapped category labels');
   const dateRe=/(\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.]?\s+\d{4}|\b(?:19|20)\d{2}\b)\s*(?:[-–—]|\bto\b)\s*(Present|Current|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.]?\s+\d{4}|\b(?:19|20)\d{2}\b)?/i;
   const isBullet=s=>/^[•·▪◦*-]\s*/.test(s);const stripBullet=s=>s.replace(/^[•·▪◦*-]\s*/,'').trim();
-  const parseExperience=arr=>{const out=[];let cur=null;const flush=()=>{if(cur&&(cur.role||cur.company||cur.details))out.push(cur);cur=null;};
+  const parseExperience=arr=>{
+   const hasLabeledProjects=arr.some(l=>/^\s*Project\s*:/i.test(l.text))&&arr.some(l=>/^\s*Role\s*:/i.test(l.text));
+   if(hasLabeledProjects){
+    const out=[];let cur=null;
+    const ensure=()=>{if(!cur)cur={id:uid('exp'),role:'',company:'',start:'',end:'',details:''};return cur;};
+    const addDetail=(label,value)=>{const v=clean(value);if(v)ensure().details+=(ensure().details?'\n':'')+(label?label+': ':'')+v;};
+    const flush=()=>{if(cur&&(cur.role||cur.company||cur.details))out.push(cur);cur=null;};
+    for(const l of arr){
+     const raw=clean(l.text);if(!raw)continue;
+     const project=raw.match(/^Project\s*:\s*-?\s*(.*)$/i);
+     if(project){
+      flush();cur={id:uid('exp'),role:'',company:'',start:'',end:'',details:''};
+      const title=clean(project[1]);const date=title.match(dateRe);
+      if(date){cur.start=date[1]||'';cur.end=date[2]||'';}
+      const projectName=clean(title.replace(date?.[0]||'','').replace(/[|,–—-]+$/,''));
+      addDetail('Project',projectName);
+      continue;
+     }
+     const roleLine=raw.match(/^Role\s*:\s*-?\s*(.*)$/i);
+     if(roleLine){
+      const roleText=stripBullet(roleLine[1]);const parts=roleText.split(/\s*[|｜]\s*/).map(clean).filter(Boolean);
+      ensure();
+      if(parts.length>=2){cur.role=parts[0];cur.company=parts.slice(1).join(' | ');}
+      else cur.role=roleText;
+      continue;
+     }
+     const technologies=raw.match(/^Technologies?\s+Used\s*:\s*(.*)$/i);
+     if(technologies){
+      let value=technologies[1];const responsibilityIndex=value.search(/\s+Responsibilities\s*:\s*-?\s*/i);
+      let responsibilityText='';
+      if(responsibilityIndex>=0){const marker=value.match(/\s+Responsibilities\s*:\s*-?\s*/i);responsibilityText=value.slice(responsibilityIndex+(marker?.[0].length||0));value=value.slice(0,responsibilityIndex);}
+      addDetail('Technologies',value);
+      if(responsibilityText)addDetail('',stripBullet(responsibilityText));
+      continue;
+     }
+     const responsibility=raw.match(/^Responsibilities\s*:\s*-?\s*(.*)$/i);
+     if(responsibility){if(responsibility[1])addDetail('',stripBullet(responsibility[1]));continue;}
+     const item=stripBullet(raw);
+     if(item)addDetail(isBullet(raw)?'•':'',item);
+    }
+    flush();return out;
+   }
+   const out=[];let cur=null;const flush=()=>{if(cur&&(cur.role||cur.company||cur.details))out.push(cur);cur=null;};
    for(const l of arr){let t=stripBullet(l.text);if(!t)continue;const date=t.match(dateRe);const hasSep=/\s[|｜]\s/.test(t);const headerLike=!isBullet(l.text)&&t.length<220&&(hasSep||!!date||(/^[A-Z][A-Z0-9 &.,'()-]{4,}$/.test(t)&&!/[.!?]$/.test(t)));
     if(headerLike){flush();let parts=t.split(/\s*[|｜]\s*/).map(clean).filter(Boolean);let company='',role='',start='',end='';
      const dm=t.match(dateRe);if(dm){start=dm[1]||'';end=dm[2]||'';}
@@ -154,10 +273,11 @@
     if(!cur){cur={id:uid('exp'),role:'',company:'',start:'',end:'',details:''};}
     if(date&&!cur.start){cur.start=date[1]||'';cur.end=date[2]||'';t=t.replace(date[0],'').replace(/[|,–—-]+$/,'').trim();}
     if(t){if(!cur.role&&!isBullet(l.text)&&t.length<100){cur.role=t;}else if(isBullet(l.text)){cur.details+=(cur.details?'\n':'')+'• '+t;}else{cur.details+=(cur.details?' ':'')+t;}}
-   }flush();return out;};
+   }flush();return out;
+  };
   const expLines=sections.experience||[];d.experience=parseExperience(expLines);if(d.experience.length)mark('experience',expLines,d.experience.every(x=>x.company&&x.role)?'high':'medium','Grouped headers and following bullet/paragraph lines; verify ambiguous employer/title splits');
   // Education entries are often one or two lines with degree — institution | date.
-  const eduLines=sections.education||[];let edu=[];for(let i=0;i<eduLines.length;i++){const l=eduLines[i],t=stripBullet(l.text);if(!t)continue;const date=t.match(dateRe)||t.match(/((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.]?\s+\d{4}|\b(?:19|20)\d{2}\b)/i);const withoutDate=t.replace(date?.[0]||'','').trim().replace(/[|｜,–—-]+$/,'').trim();const parts=withoutDate.split(/\s*[|｜]\s*|\s+[—–]\s+/).map(clean).filter(Boolean);let role=parts[0]||withoutDate,company=parts.slice(1).join(' — '),details='';if(!company&&i+1<eduLines.length&&!date&&eduLines[i+1].text.length<110){company=stripBullet(eduLines[++i].text);}edu.push({id:uid('edu'),role,company,start:date?.[1]||'',end:date?.[2]||'',details});}d.education=edu;if(edu.length)mark('education',eduLines,'medium','Degree/institution split from separators and adjacent lines; verify dates');
+  const eduLines=sections.education||[];let edu=[];for(let i=0;i<eduLines.length;i++){const l=eduLines[i],t=stripBullet(l.text);if(!t)continue;const date=t.match(dateRe)||t.match(/((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.]?\s+\d{4}|\b(?:19|20)\d{2}\b)/i);const withoutDate=t.replace(date?.[0]||'','').trim().replace(/[|｜,–—-]+$/,'').trim();const parts=withoutDate.split(/\s*[|｜]\s*|\s+[-–—]\s+/).map(clean).filter(Boolean);let role=parts[0]||withoutDate,company=parts.slice(1).join(' — '),details='';if(!company&&i+1<eduLines.length&&!date&&eduLines[i+1].text.length<110){company=stripBullet(eduLines[++i].text);}edu.push({id:uid('edu'),role,company,start:date?.[1]||'',end:date?.[2]||'',details});}d.education=edu;if(edu.length)mark('education',eduLines,'medium','Degree/institution split from separators and adjacent lines; verify dates');
   const certLines=sections.certifications||[];d.certifications=certLines.map(l=>({id:uid('cert'),name:stripBullet(l.text),details:''})).filter(x=>x.name);if(d.certifications.length)mark('certifications',certLines,'medium','Located under certification heading');
   const projectLines=sections.projects||[];let projects=[];for(const l of projectLines){const t=stripBullet(l.text);if(!t)continue;if(isBullet(l.text)&&projects.length)projects[projects.length-1].description+=(projects[projects.length-1].description?'\n':'')+t;else projects.push({id:uid('project'),name:t,description:''});}d.projects=projects;if(projects.length)mark('projects',projectLines,'medium','Located under projects heading');
   const recognised=new Set(['intro','summary','experience','education','skills','certifications','projects']);
