@@ -62,35 +62,28 @@ function exportJSON(){readFields();const blob=new Blob([JSON.stringify(data,null
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function importJSON(obj){data={...blank(),...obj,experience:Array.isArray(obj.experience)?obj.experience:[],education:Array.isArray(obj.education)?obj.education:[],extras:Array.isArray(obj.extras)?obj.extras:[],skillsGroups:Array.isArray(obj.skillsGroups)?obj.skillsGroups:[]};ensureSkillGroups();fillFields();renderAll();queueSave();}
 function renderAll(){ensureSkillGroups();renderEntryList('experience');renderEntryList('education');renderSkillGroups();renderExtras();renderPreview();updateATS();}
-$('#nav').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(!b||!$('#nav').contains(b))return;e.preventDefault();switchView(b.dataset.view)});
-$('.tabs').forEach(t=>t.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)switchView(b.dataset.view)}));
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)switchView(b.dataset.view)});
+document.addEventListener('click',e=>{const b=e.target.closest('.side-bottom [data-view="settings"]');if(!b)return;e.preventDefault();switchView('settings');});$$('.tabs').forEach(t=>t.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)switchView(b.dataset.view)}));
 document.addEventListener('input',e=>{const el=e.target;if(el.matches('[data-field]')){clearPreviewOverride();data[el.dataset.field]=el.value;queueSave();}if(el.matches('[data-array]')){clearPreviewOverride();const a=data[el.dataset.array][+el.dataset.index];a[el.dataset.key]=el.value;queueSave();}if(el.matches('[data-skillgroup]')){clearPreviewOverride();const a=data.skillsGroups[+el.dataset.skillgroup];if(a){a[el.dataset.key]=el.value;queueSave();}}});
 document.addEventListener('click',e=>{const sg=e.target.closest('[data-remove-skillgroup]');if(sg){data.skillsGroups.splice(+sg.dataset.removeSkillgroup,1);renderSkillGroups();queueSave();}const r=e.target.closest('[data-remove]');if(r){data[r.dataset.remove].splice(+r.dataset.index,1);r.dataset.remove==='extras'?renderExtras():renderEntryList(r.dataset.remove);queueSave();}const t=e.target.closest('[data-template]');if(t){data.template=t.dataset.template;$$('[data-template]').forEach(x=>x.classList.toggle('selected',x.dataset.template===data.template));renderPreview();queueSave();}});
 $('#addSkillGroup').onclick=()=>{ensureSkillGroups();data.skillsGroups.push({heading:'',description:''});renderSkillGroups();queueSave();};$('#addExperience').onclick=()=>add('experience');$('#addEducation').onclick=()=>add('education');$('#addExtra').onclick=()=>add('extras');$('#saveBtn').onclick=()=>{readFields();persist();};$('#clearBtn').onclick=()=>{if(confirm('Clear the current resume? This does not delete exported files.')){data=blank();fillFields();renderAll();persist();}};$('#accent').oninput=e=>{data.accent=e.target.value;queueSave();};
 $('#useTemplate')?.addEventListener('click',()=>{renderPreview();switchView('editor');});
 const THEME_KEY='reze-theme-v1';
 function setTheme(theme){
-  const light=String(theme)==='light';
+  const light=theme==='light';
   document.body.classList.toggle('light',light);
   document.documentElement.dataset.theme=light?'light':'dark';
-  document.documentElement.style.colorScheme=light?'light':'dark';
   const appearance=$('#appearance'),toggle=$('#themeToggle');
   if(appearance) appearance.value=light?'light':'dark';
-  if(toggle){
-    toggle.textContent=light?'☾':'☼';
-    toggle.setAttribute('aria-label',light?'Switch to dark mode':'Switch to light mode');
-    toggle.setAttribute('aria-pressed',String(light));
-    toggle.title=light?'Switch to dark mode':'Switch to light mode';
-  }
-  try{localStorage.setItem(THEME_KEY,light?'light':'dark');}catch(error){console.warn('REZE could not persist the appearance preference.',error);}
-  return light?'light':'dark';
+  if(toggle){toggle.textContent=light?'☾':'☼';toggle.setAttribute('aria-label',light?'Switch to dark mode':'Switch to light mode');toggle.title=light?'Switch to dark mode':'Switch to light mode';}
+  try{localStorage.setItem(THEME_KEY,light?'light':'dark')}catch{}
 }
 let initialTheme='dark';
-try{initialTheme=localStorage.getItem(THEME_KEY)||'dark';}catch{}
+try{initialTheme=localStorage.getItem(THEME_KEY)||'dark'}catch{}
 setTheme(initialTheme);
-$('#themeToggle')?.addEventListener('click',()=>setTheme(document.body.classList.contains('light')?'dark':'light'));
-$('#appearance')?.addEventListener('change',e=>setTheme(e.target.value));
-$('#cursorSize')?.addEventListener('input',e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px'));
+$('#themeToggle').addEventListener('click',()=>setTheme(document.body.classList.contains('light')?'dark':'light'));
+$('#appearance').addEventListener('change',e=>setTheme(e.target.value));
+$('#cursorSize').oninput=e=>document.documentElement.style.setProperty('--cursor',e.target.value+'px');
 $('#exportPdf').onclick=$('#printBtn').onclick=()=>{renderPreview();window.print();};
 $('#downloadOriginal').onclick=downloadOriginalFile;
 $('#downloadWorking').onclick=downloadWorkingCopy;
@@ -205,7 +198,7 @@ async function renderUploadedOriginal(file,format){const host=$('#uploadedOrigin
 
 function openOriginalDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(ORIGINAL_DB,1);req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('originals'))req.result.createObjectStore('originals',{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 const makeFileId=()=>`file-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
-async function storeOriginalFile(file){const db=await openOriginalDB();const record={id:makeFileId(),name:file.name,type:file.type||'application/octet-stream',size:file.size,blob:file,lastModified:file.lastModified,createdAt:new Date().toISOString(),status:'Stored'};return new Promise((resolve,reject)=>{const tx=db.transaction('originals','readwrite');tx.objectStore('originals').put(record);tx.oncomplete=()=>{db.close();resolve(record);};const fail=()=>{db.close();reject(tx.error||new Error('The browser could not save the original file locally. Check available storage and try again.'));};tx.onerror=fail;tx.onabort=fail;});}
+async function storeOriginalFile(file){const db=await openOriginalDB();const record={id:makeFileId(),name:file.name,type:file.type||'application/octet-stream',size:file.size,blob:file,lastModified:file.lastModified,createdAt:new Date().toISOString(),status:'Stored'};return new Promise((resolve,reject)=>{const tx=db.transaction('originals','readwrite');tx.objectStore('originals').put(record);tx.oncomplete=()=>{db.close();resolve(record);};tx.onerror=()=>{db.close();reject(tx.error);};});}
 async function listOriginalFiles(){const db=await openOriginalDB();return new Promise((resolve,reject)=>{const req=db.transaction('originals').objectStore('originals').getAll();req.onsuccess=()=>{db.close();resolve((req.result||[]).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));};req.onerror=()=>{db.close();reject(req.error);};});}
 async function getOriginalFile(id){const files=await listOriginalFiles();return id?files.find(x=>x.id===id)||null:files[0]||null;}
 async function deleteOriginalFile(id){const db=await openOriginalDB();return new Promise((resolve,reject)=>{const tx=db.transaction('originals','readwrite');tx.objectStore('originals').delete(id);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error);};});}
@@ -223,7 +216,7 @@ function setUploadProgress(value,status){
  panel.hidden=false;$('#uploadProgressPercent').textContent=pct+'%';$('#uploadProgressStatus').textContent=status||'Processing…';
  $('#uploadProgressFill').style.width=pct+'%';$('#uploadProgressBar').setAttribute('aria-valuenow',String(pct));
 }
-function beginUploadProgress(file){clearInterval(uploadProgressTimer);$('#uploadProgressName').textContent=file.name;$('#uploadProgress').classList.remove('has-error');setUploadProgress(8,'Validating file and preparing local storage');}
+function beginUploadProgress(file){clearInterval(uploadProgressTimer);$('#uploadProgressName').textContent=file.name;setUploadProgress(5,'Starting upload…');let pct=5;uploadProgressTimer=setInterval(()=>{if(pct<18){pct+=1;setUploadProgress(pct,'Storing original file safely');}else if(pct<38){pct+=1;setUploadProgress(pct,'Preparing to read file');}else clearInterval(uploadProgressTimer);},140);}
 function finishUploadProgress(status='Upload complete'){clearInterval(uploadProgressTimer);setUploadProgress(100,status);$('#uploadProgressStatus').textContent=status;}
 function failUploadProgress(message){clearInterval(uploadProgressTimer);$('#uploadProgressStatus').textContent=message||'Upload failed';$('#uploadProgress').classList.add('has-error');}
 function updateUploadSelectionUI(files){
@@ -253,75 +246,25 @@ async function importDocument(file,ext,record){
   switchView
  });
 }
-let uploadInProgress=false;
-function openUploadPicker(){
- if(uploadInProgress)return;
- switchView('upload');
- uploadInput.value='';
- uploadInput.click();
-}
-window.REZEOpenUploadPicker=openUploadPicker;
 async function handleChosenFile(file){
- if(!file||uploadInProgress)return;
- const fileName=String(file.name||'resume').trim();
- const ext=(fileName.split('.').pop()||'').toLowerCase();
- const mimeMap={'application/pdf':'pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx','text/plain':'txt','application/json':'json'};
- const type=['pdf','docx','txt','json'].includes(ext)?ext:mimeMap[file.type]||'';
- const failBeforeStart=message=>{
-   $('#uploadProgress').classList.remove('has-error');
-   setUploadProgress(0,message);
-   failUploadProgress(message);
-   alert(message);
- };
- if(!fileName){failBeforeStart('Choose a file with a valid filename.');return;}
- if(!file.size){failBeforeStart('The selected file is empty. Please choose another file.');return;}
- if(file.size>20*1024*1024){failBeforeStart('This file is larger than REZE’s 20 MB limit. Please choose a smaller file.');return;}
- if(!type){failBeforeStart('Unsupported file type. Please select a PDF, DOCX, TXT or JSON file.');return;}
- if(!window.indexedDB){failBeforeStart('This browser does not allow local file storage. Enable site storage or use a supported browser.');return;}
- uploadInProgress=true;
- const pickerButtons=[$('#openUpload'),$('#browseFiles'),$('#dashboardImport'),...$$('#nav [data-reze-import-nav]')].filter(Boolean);
- pickerButtons.forEach(button=>button.disabled=true);
- $('#uploadProgress').classList.remove('has-error');
- beginUploadProgress(file);
+ if(!file)return;
+ if(file.size>20*1024*1024){alert('Please choose a file smaller than 20 MB.');return;}
+ const name=file.name.toLowerCase(),ext=name.split('.').pop();if(!['json','txt','docx','pdf'].includes(ext)){alert('Please select a PDF, DOCX, TXT or JSON file.');return;}$('#uploadProgress').classList.remove('has-error');beginUploadProgress(file);
  try{
-   const record=await storeOriginalFile(file);
-   setUploadProgress(32,'Original file stored in this browser');
-   selectedFileId=record.id;selectedUploadFileIds.clear();
-   await renderFileLibrary();
-   $('#saveState').textContent='✓ Original safely stored';
-   setUploadProgress(48,'Extracting document content');
-   const imported=await importDocument(file,type,record);
-   if(imported?.cancelled){finishUploadProgress('Import cancelled · original kept in Your files');return;}
-   await renderFileLibrary();
-   finishUploadProgress('Upload complete · '+fileName);
-   $('#saveState').textContent='✓ Imported locally';
- }catch(err){
-   console.error('REZE upload failed:',err);
-   const message=err?.message||'Unexpected error while reading this file.';
-   failUploadProgress('Upload failed: '+message);
-   alert('REZE could not import this file: '+message+'\n\nThe original file may still be available in Your files if it was stored successfully.');
-   try{await renderFileLibrary();}catch(libraryError){console.error('Could not refresh the local file library:',libraryError);}
- }finally{
-   uploadInProgress=false;
-   pickerButtons.forEach(button=>button.disabled=false);
- }
+  const record=await storeOriginalFile(file);setUploadProgress(32,'Original file stored securely in this browser');selectedFileId=record.id;selectedUploadFileIds.clear();await renderFileLibrary();$('#saveState').textContent='✓ Original safely stored';
+  if(ext==='json'||ext==='txt'||ext==='docx'||ext==='pdf'){setUploadProgress(48,'Extracting document content');const imported=await importDocument(file,ext,record);if(imported?.cancelled){finishUploadProgress('Import cancelled');return;}}
+  else throw new Error('Please select a PDF, DOCX, TXT or JSON file.');
+  await renderFileLibrary();finishUploadProgress('Upload complete · '+file.name);$('#saveState').textContent='✓ Imported locally';
+ }catch(err){console.error(err);failUploadProgress('Could not import this file');alert('Could not import this file: '+err.message+'\nThe original upload remains stored in your document library.');await renderFileLibrary();}
 }
-$('#openUpload').addEventListener('click',openUploadPicker);
-$('#browseFiles').addEventListener('click',openUploadPicker);
-$('#uploadDropzone').addEventListener('click',e=>{if(e.target.closest('button'))return;openUploadPicker();});
-$('#uploadDropzone').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openUploadPicker();}});
-['dragenter','dragover'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();if(!uploadInProgress)$('#uploadDropzone').classList.add('drag-over');}));
+$('#openUpload').onclick=()=>switchView('upload');
+$('#browseFiles').onclick=()=>uploadInput.click();
+$('#uploadDropzone').onclick=e=>{if(e.target.closest('button'))return;uploadInput.click();};
+$('#uploadDropzone').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();uploadInput.click();}};
+['dragenter','dragover'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();$('#uploadDropzone').classList.add('drag-over');}));
 ['dragleave','drop'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();$('#uploadDropzone').classList.remove('drag-over');}));
-$('#uploadDropzone').addEventListener('drop',e=>{
- e.preventDefault();
- const file=e.dataTransfer?.files?.[0];
- if(file){switchView('upload');handleChosenFile(file);}
-});
-uploadInput.addEventListener('change',e=>{
- const file=e.target.files?.[0];
- e.target.value='';
- if(file)handleChosenFile(file);
-});
+$('#uploadDropzone').addEventListener('drop',e=>{const files=[...e.dataTransfer.files];if(files.length)handleChosenFile(files[0]);});
+uploadInput.addEventListener('change',e=>{const f=e.target.files[0];if(f)handleChosenFile(f);e.target.value='';});
 $('#toggleFileManage').onclick=async()=>{uploadManageMode=!uploadManageMode;selectedUploadFileIds.clear();await renderFileLibrary();};
 $('#selectAllUploads').onchange=async e=>{const files=await listOriginalFiles();selectedUploadFileIds.clear();if(e.target.checked)files.forEach(f=>selectedUploadFileIds.add(f.id));await renderFileLibrary();};
 $('#deleteSelectedUploads').onclick=async()=>{const ids=[...selectedUploadFileIds];if(!ids.length)return;if(!confirm(`Delete ${ids.length} selected original file${ids.length===1?'':'s'} from this browser? Your current resume draft will remain.`))return;await deleteOriginalFiles(ids);if(ids.includes(selectedFileId))selectedFileId=null;selectedUploadFileIds.clear();await renderFileLibrary();};

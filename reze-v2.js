@@ -93,7 +93,7 @@
     $('#dashboardCreate')?.addEventListener('click',createResume);
     $('#dashboardEmptyCreate')?.addEventListener('click',createResume);
     $('#libraryCreate')?.addEventListener('click',createResume);
-    $('#dashboardImport')?.addEventListener('click',()=>window.REZEOpenUploadPicker?.());
+    $('#dashboardImport')?.addEventListener('click',()=>$('#importFile')?.click());
     $('#dashboardViewAll')?.addEventListener('click',()=>$('#nav [data-view="resumes"]')?.click());
     $('#dashboardTemplates')?.addEventListener('click',()=>$('#nav [data-view="templates"]')?.click());
     $('#librarySearch')?.addEventListener('input',renderLibrary);

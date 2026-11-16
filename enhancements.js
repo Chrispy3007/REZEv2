@@ -9,14 +9,11 @@
   const readLibrary = () => { try { const x=JSON.parse(localStorage.getItem(LIBRARY_KEY)||'[]'); return Array.isArray(x)?x:[]; } catch { return []; } };
   const writeLibrary = x => localStorage.setItem(LIBRARY_KEY, JSON.stringify(x));
 
-  // Add one direct Import Resume action; the main nav handler opens the upload view.
+  // Add a distinct import destination in the primary navigation.
   const nav = $('#nav');
-  if (nav && !nav.querySelector('[data-reze-import-nav="true"]')) {
-    const b=document.createElement('button');
-    b.className='nav-item'; b.type='button'; b.dataset.view='upload'; b.dataset.rezeImportNav='true';
-    b.innerHTML='<span class="nav-icon">⇧</span><span>Import Resume</span>';
-    b.addEventListener('click', () => window.REZEOpenUploadPicker?.());
-    nav.append(b);
+  if (nav && !nav.querySelector('[data-view="import"]')) {
+    const b=document.createElement('button'); b.className='nav-item'; b.dataset.view='import'; b.innerHTML='<span class="nav-icon">⇧</span><span>Import Resume</span>'; nav.append(b);
+    b.addEventListener('click', () => $('#importFile')?.click());
   }
 
   // Turn the long editor into guided section navigation while retaining the live preview.
