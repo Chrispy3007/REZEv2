@@ -120,7 +120,15 @@
  function getAiEndpoint(){return (localStorage.getItem(AI_ENDPOINT_KEY)||defaultAiEndpoint).trim().replace(/\/$/,'');}
  async function requestAiClassification(text,base){
   const endpoint=getAiEndpoint();if(!endpoint)throw new Error('Add your Vercel API URL in Settings first.');
-  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},mode:'cors',credentials:'omit',body:JSON.stringify({task:'classify_resume',sourceText:String(text).slice(0,90000),schemaVersion:2})});
+  const allowed=['name','title','email','phone','location','links','summary','skills','experience','education','skillsGroups','projects','certifications','additionalInformation','customSections'];
+  const browserDraft={};
+  for(const key of allowed){
+   const value=base?.[key];
+   if(typeof value==='string')browserDraft[key]=value.slice(0,12000);
+   else if(Array.isArray(value))browserDraft[key]=value.slice(0,60);
+  }
+  const payload={task:'classify_resume',sourceText:String(text).slice(0,90000),browserDraft,schemaVersion:2};
+  const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},mode:'cors',credentials:'omit',body:JSON.stringify(payload)});
   let body={};try{body=await response.json()}catch(_){}
   if(!response.ok)throw new Error(body.error||('Groq service returned HTTP '+response.status+'.'));
   return validateAiSuggestion(body,base);
