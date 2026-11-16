@@ -7,15 +7,15 @@ const blank=()=>({name:'',title:'',email:'',phone:'',location:'',links:'',summar
 let data=blank(), timer;
 const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s||'').trim();
-// Human-readable file size used by the original-document library.
-function formatBytes(bytes){
- const size=Number(bytes)||0;
+// Shared, explicit file-size formatter. Keep it available to every app module.
+window.REZEFormatBytes = function REZEFormatBytes(bytes){
+ const size=Math.max(0,Number(bytes)||0);
  if(size<1024)return `${size} B`;
  const units=['KB','MB','GB','TB'];
  let value=size/1024,index=0;
  while(value>=1024&&index<units.length-1){value/=1024;index++;}
  return `${value.toFixed(value>=10?1:2)} ${units[index]}`;
-}
+};
 function hydrate(){try{const v=JSON.parse(localStorage.getItem(KEY));if(v&&typeof v==='object')data={...blank(),...v,experience:Array.isArray(v.experience)?v.experience:[],education:Array.isArray(v.education)?v.education:[],extras:Array.isArray(v.extras)?v.extras:[],skillsGroups:Array.isArray(v.skillsGroups)?v.skillsGroups:[],customSections:Array.isArray(v.customSections)?v.customSections:[],previewHtmlOverride:String(v.previewHtmlOverride||''),sectionOrder:Array.isArray(v.sectionOrder)?v.sectionOrder:blank().sectionOrder,hiddenSections:Array.isArray(v.hiddenSections)?v.hiddenSections:[]};}catch{} }
 function ensureSkillGroups(){if(!Array.isArray(data.skillsGroups))data.skillsGroups=[];if(!data.skillsGroups.length&&clean(data.skills)){data.skillsGroups=[{heading:'Technical Skills',description:clean(data.skills)}];}if(data.skillsGroups.length)data.skills='';}
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(data));$('#saveState').textContent='✓ Saved locally';}catch{$('#saveState').textContent='Unable to save locally';}}
@@ -233,7 +233,7 @@ async function renderFileLibrary(){
  [...selectedUploadFileIds].forEach(id=>{if(!files.some(f=>f.id===id))selectedUploadFileIds.delete(id);});
  if(!files.length){host.className='upload-empty';host.textContent='Your document library is empty. Upload a PDF, DOCX, TXT or JSON file to get started.';$('#uploadFileActions').hidden=true;$('#toggleFileManage').disabled=true;uploadManageMode=false;updateUploadSelectionUI(files);return;}
  $('#toggleFileManage').disabled=false;host.className='upload-library';
- host.innerHTML=files.map(f=>{const ext=f.name.split('.').pop().toUpperCase(),checked=selectedUploadFileIds.has(f.id);return `<div class="upload-file-card ${selectedFileId===f.id?'is-selected':''} ${checked?'is-bulk-selected':''}" data-file-row="${f.id}">${uploadManageMode?`<label class="upload-file-check" aria-label="Select ${escapeHTML(f.name)}"><input type="checkbox" data-select-upload="${f.id}" ${checked?'checked':''}></label>`:''}<div class="upload-file-icon">${escapeHTML(ext)}</div><div class="upload-file-info"><b>${escapeHTML(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.createdAt).toLocaleString()}</small><small class="file-substatus">Original stored locally · editable copy stored separately</small></div>${uploadManageMode?'':`<button class="mini-tool" data-download-file="${f.id}" type="button">Download</button>`}</div>`;}).join('');
+ host.innerHTML=files.map(f=>{const ext=f.name.split('.').pop().toUpperCase(),checked=selectedUploadFileIds.has(f.id);return `<div class="upload-file-card ${selectedFileId===f.id?'is-selected':''} ${checked?'is-bulk-selected':''}" data-file-row="${f.id}">${uploadManageMode?`<label class="upload-file-check" aria-label="Select ${escapeHTML(f.name)}"><input type="checkbox" data-select-upload="${f.id}" ${checked?'checked':''}></label>`:''}<div class="upload-file-icon">${escapeHTML(ext)}</div><div class="upload-file-info"><b>${escapeHTML(f.name)}</b><small>${window.REZEFormatBytes(f.size)} · ${new Date(f.createdAt).toLocaleString()}</small><small class="file-substatus">Original stored locally · editable copy stored separately</small></div>${uploadManageMode?'':`<button class="mini-tool" data-download-file="${f.id}" type="button">Download</button>`}</div>`;}).join('');
  $('#uploadFileActions').hidden=uploadManageMode||!selectedFileId;updateUploadSelectionUI(files);
 }
 async function importDocument(file,ext,record){

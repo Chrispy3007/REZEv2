@@ -111,3 +111,6 @@ The import workflow is review-first. PDF, DOCX, TXT and JSON imports are extract
 ### Import-engine limitations and verification
 
 This is client-side extraction and structured mapping, not exact reproduction of a source document's visual layout. Multi-column PDF reading order can still need manual correction; DOCX tables may be flattened into text; OCR currently uses English; and extraction confidence is a heuristic review aid, not a measured accuracy guarantee. The uploaded ZIP did not include a representative test corpus, so extraction accuracy across the ten proposed document categories has not been benchmarked. A secure AI service cannot be deployed solely in static GitHub Pages without a backend.
+
+
+Upload hotfix v2: exposes `window.REZEFormatBytes` as an explicit shared helper, updates the document-library renderer to call it directly, and bumps local asset query versions to invalidate stale browser caches.
