@@ -40,7 +40,7 @@ function normalizeTextValue(value,field){
         const name=[item.label,item.name,item.type].find(x=>typeof x==='string'&&x.trim())||label;
         if(url){add(name,url,depth+1);return;}
       }
-      const labelValue=[item.heading,item.category,item.group,item.label,item.name,titleCaseKey(item.type)].find(x=>typeof x==='string'&&x.trim());
+      const labelValue=[item.heading,item.category,item.group,item.label,item.name,(typeof item.type==='string'?item.type:'')].find(x=>typeof x==='string'&&x.trim());
       let handledPreferred=false;
       for(const key of preferred){
         if(Object.prototype.hasOwnProperty.call(item,key)){
