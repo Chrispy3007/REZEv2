@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const handler = require('../api/resume/classify.js');
+const handler = require('./api/resume/classify.js');
 
 function response() {
   return {
