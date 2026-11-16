@@ -191,37 +191,73 @@ async function storeOriginalFile(file){const db=await openOriginalDB();const rec
 async function listOriginalFiles(){const db=await openOriginalDB();return new Promise((resolve,reject)=>{const req=db.transaction('originals').objectStore('originals').getAll();req.onsuccess=()=>{db.close();resolve((req.result||[]).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));};req.onerror=()=>{db.close();reject(req.error);};});}
 async function getOriginalFile(id){const files=await listOriginalFiles();return id?files.find(x=>x.id===id)||null:files[0]||null;}
 async function deleteOriginalFile(id){const db=await openOriginalDB();return new Promise((resolve,reject)=>{const tx=db.transaction('originals','readwrite');tx.objectStore('originals').delete(id);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error);};});}
+async function deleteOriginalFiles(ids){const db=await openOriginalDB();return new Promise((resolve,reject)=>{const tx=db.transaction('originals','readwrite'),store=tx.objectStore('originals');ids.forEach(id=>store.delete(id));tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>{db.close();reject(tx.error);};});}
 async function downloadOriginalFile(id){const rec=await getOriginalFile(id||selectedFileId);if(!rec){alert('No original document is stored in this browser yet.');return;}download(rec.blob,rec.name);}
 async function migrateLegacyOriginal(){try{const old=await new Promise((resolve,reject)=>{const req=indexedDB.open('reze-original-files-v1');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onupgradeneeded=()=>{req.transaction.abort();reject(new Error('No legacy database'));};});if(!old.objectStoreNames.contains('originals')){old.close();return;}const item=await new Promise((resolve,reject)=>{const q=old.transaction('originals').objectStore('originals').get('latest');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});old.close();if(item?.blob){const db=await openOriginalDB();await new Promise((resolve,reject)=>{const tx=db.transaction('originals','readwrite');tx.objectStore('originals').put({...item,id:makeFileId(),createdAt:new Date().toISOString(),size:item.blob.size});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});db.close();}}catch(_){}}
 function downloadWorkingCopy(){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='REZE-working-copy.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);}
 let selectedFileId=null;
-async function importDocument(file, extension, record) {
-  $('#saveState').textContent='Reading document…';
-  const extracted=extension==='pdf'?await extractPdfText(file):await extractDocxText(file);
-  if(!extracted||extracted.length<20)throw new Error('No readable text was found. This may be a scanned PDF or a protected document. Scanned PDFs require OCR before import.');
-  await renderUploadedOriginal(file,extension);
-  if(extension==='docx'){await loadScriptOnce('https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js',()=>!!window.mammoth);const converted=await window.mammoth.convertToHtml({arrayBuffer:await file.arrayBuffer()});setUploadedEditable(converted.value,'docx',file.name);}else{setUploadedEditable('<pre>'+escapeHTML(extracted)+'</pre>','pdf',file.name);}
-  const parsed=parseResumeText(extracted);
-  if(!parsed.name&&!parsed.email&&!parsed.summary&&!parsed.skills&&!parsed.experience.length&&!parsed.education.length&&!parsed.extras.length)parsed.summary=extracted;
-  data={...blank(),...parsed,template:data.template||'modern',accent:data.accent||'#b77bec'};ensureSkillGroups();
-  fillFields();renderAll();queueSave();switchView('upload');
-  $('#originalFileStatus').textContent=`Original preserved: ${record.name}. Edit the uploaded document directly in the workspace below; the original remains unchanged.`;
-  $('#saveState').textContent='✓ Imported locally';
+let uploadManageMode=false;
+const selectedUploadFileIds=new Set();
+let uploadProgressTimer=null;
+function setUploadProgress(value,status){
+ const panel=$('#uploadProgress');if(!panel)return;
+ const pct=Math.max(0,Math.min(100,Math.round(value)));
+ panel.hidden=false;$('#uploadProgressPercent').textContent=pct+'%';$('#uploadProgressStatus').textContent=status||'Processing…';
+ $('#uploadProgressFill').style.width=pct+'%';$('#uploadProgressBar').setAttribute('aria-valuenow',String(pct));
 }
-const uploadInput=$('#importFile');
-function formatBytes(n){return n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(0)} KB`:`${(n/1048576).toFixed(1)} MB`;}
-async function renderFileLibrary(){const host=$('#uploadFileCard');const files=await listOriginalFiles();if(!selectedFileId&&files.length)selectedFileId=files[0].id;if(selectedFileId&&!files.some(f=>f.id===selectedFileId))selectedFileId=files[0]?.id||null;if(!files.length){host.className='upload-empty';host.textContent='Your document library is empty. Upload a PDF, DOCX, TXT or JSON file to get started.';$('#uploadFileActions').hidden=true;return;}host.className='upload-library';host.innerHTML=files.map(f=>{const ext=f.name.split('.').pop().toUpperCase();return `<div class="upload-file-card ${selectedFileId===f.id?'is-selected':''}" data-file-row="${f.id}"><div class="upload-file-icon">${escapeHTML(ext)}</div><div class="upload-file-info"><b>${escapeHTML(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.createdAt).toLocaleString()}</small><small class="file-substatus">Original stored locally · editable copy stored separately</small></div><button class="mini-tool" data-download-file="${f.id}" type="button">Download</button><button class="mini-tool danger" data-delete-file="${f.id}" type="button" aria-label="Delete ${escapeHTML(f.name)}">×</button></div>`;}).join('');$('#uploadFileActions').hidden=!selectedFileId;}
-async function handleChosenFile(file){if(file.size>20*1024*1024){alert('Please choose a file smaller than 20 MB.');return;}const name=file.name.toLowerCase();try{const record=await storeOriginalFile(file);selectedFileId=record.id;await renderFileLibrary();$('#saveState').textContent='✓ Original safely stored';const ext=name.split('.').pop();if(ext==='json'){const raw=await file.text();importJSON(JSON.parse(raw));await renderUploadedOriginal(file,'txt');setUploadedEditable('<pre>'+escapeHTML(raw)+'</pre>','json',file.name);switchView('upload');}else if(ext==='txt'){const raw=await file.text();data.summary=raw;fillFields();renderAll();queueSave();await renderUploadedOriginal(file,'txt');setUploadedEditable('<pre>'+escapeHTML(raw)+'</pre>','txt',file.name);switchView('upload');}else if(ext==='docx'||ext==='pdf'){await importDocument(file,ext,record);}else throw new Error('Please select a PDF, DOCX, TXT or JSON file.');await renderFileLibrary();}catch(err){console.error(err);alert('Could not import this file: '+err.message+'\nThe original upload remains stored in your document library.');await renderFileLibrary();}}
+function beginUploadProgress(file){clearInterval(uploadProgressTimer);$('#uploadProgressName').textContent=file.name;setUploadProgress(5,'Starting upload…');let pct=5;uploadProgressTimer=setInterval(()=>{if(pct<18){pct+=1;setUploadProgress(pct,'Storing original file safely');}else if(pct<38){pct+=1;setUploadProgress(pct,'Preparing to read file');}else clearInterval(uploadProgressTimer);},140);}
+function finishUploadProgress(status='Upload complete'){clearInterval(uploadProgressTimer);setUploadProgress(100,status);$('#uploadProgressStatus').textContent=status;}
+function failUploadProgress(message){clearInterval(uploadProgressTimer);$('#uploadProgressStatus').textContent=message||'Upload failed';$('#uploadProgress').classList.add('has-error');}
+function updateUploadSelectionUI(files){
+ const bar=$('#uploadSelectionBar');bar.hidden=!uploadManageMode;
+ const count=selectedUploadFileIds.size;$('#uploadSelectionCount').textContent=`${count} selected`;
+ $('#deleteSelectedUploads').disabled=count===0;
+ const all=$('#selectAllUploads');if(all){all.checked=files.length>0&&count===files.length;all.indeterminate=count>0&&count<files.length;}
+ $('#toggleFileManage').classList.toggle('is-active',uploadManageMode);$('#toggleFileManage').setAttribute('aria-pressed',String(uploadManageMode));
+ $('#toggleFileManage').innerHTML=uploadManageMode?'✓ &nbsp; Done':'✎ &nbsp; Edit';
+}
+async function renderFileLibrary(){
+ const host=$('#uploadFileCard');const files=await listOriginalFiles();
+ if(!selectedFileId&&files.length)selectedFileId=files[0].id;
+ if(selectedFileId&&!files.some(f=>f.id===selectedFileId))selectedFileId=files[0]?.id||null;
+ [...selectedUploadFileIds].forEach(id=>{if(!files.some(f=>f.id===id))selectedUploadFileIds.delete(id);});
+ if(!files.length){host.className='upload-empty';host.textContent='Your document library is empty. Upload a PDF, DOCX, TXT or JSON file to get started.';$('#uploadFileActions').hidden=true;$('#toggleFileManage').disabled=true;uploadManageMode=false;updateUploadSelectionUI(files);return;}
+ $('#toggleFileManage').disabled=false;host.className='upload-library';
+ host.innerHTML=files.map(f=>{const ext=f.name.split('.').pop().toUpperCase(),checked=selectedUploadFileIds.has(f.id);return `<div class="upload-file-card ${selectedFileId===f.id?'is-selected':''} ${checked?'is-bulk-selected':''}" data-file-row="${f.id}">${uploadManageMode?`<label class="upload-file-check" aria-label="Select ${escapeHTML(f.name)}"><input type="checkbox" data-select-upload="${f.id}" ${checked?'checked':''}></label>`:''}<div class="upload-file-icon">${escapeHTML(ext)}</div><div class="upload-file-info"><b>${escapeHTML(f.name)}</b><small>${formatBytes(f.size)} · ${new Date(f.createdAt).toLocaleString()}</small><small class="file-substatus">Original stored locally · editable copy stored separately</small></div>${uploadManageMode?'':`<button class="mini-tool" data-download-file="${f.id}" type="button">Download</button>`}</div>`;}).join('');
+ $('#uploadFileActions').hidden=uploadManageMode||!selectedFileId;updateUploadSelectionUI(files);
+}
+async function handleChosenFile(file){
+ if(!file)return;
+ if(file.size>20*1024*1024){alert('Please choose a file smaller than 20 MB.');return;}
+ const name=file.name.toLowerCase(),ext=name.split('.').pop();if(!['json','txt','docx','pdf'].includes(ext)){alert('Please select a PDF, DOCX, TXT or JSON file.');return;}$('#uploadProgress').classList.remove('has-error');beginUploadProgress(file);
+ try{
+  const record=await storeOriginalFile(file);setUploadProgress(32,'Original file stored securely in this browser');selectedFileId=record.id;selectedUploadFileIds.clear();await renderFileLibrary();$('#saveState').textContent='✓ Original safely stored';
+  if(ext==='json'){setUploadProgress(55,'Reading JSON file');const raw=await file.text();setUploadProgress(78,'Applying resume data');importJSON(JSON.parse(raw));await renderUploadedOriginal(file,'txt');setUploadedEditable('<pre>'+escapeHTML(raw)+'</pre>','json',file.name);switchView('upload');}
+  else if(ext==='txt'){setUploadProgress(58,'Reading text file');const raw=await file.text();setUploadProgress(78,'Preparing editable content');data.summary=raw;fillFields();renderAll();queueSave();await renderUploadedOriginal(file,'txt');setUploadedEditable('<pre>'+escapeHTML(raw)+'</pre>','txt',file.name);switchView('upload');}
+  else if(ext==='docx'||ext==='pdf'){await importDocument(file,ext,record);}
+  else throw new Error('Please select a PDF, DOCX, TXT or JSON file.');
+  await renderFileLibrary();finishUploadProgress('Upload complete · '+file.name);$('#saveState').textContent='✓ Imported locally';
+ }catch(err){console.error(err);failUploadProgress('Could not import this file');alert('Could not import this file: '+err.message+'\nThe original upload remains stored in your document library.');await renderFileLibrary();}
+}
 $('#openUpload').onclick=()=>switchView('upload');
 $('#browseFiles').onclick=()=>uploadInput.click();
 $('#uploadDropzone').onclick=e=>{if(e.target.closest('button'))return;uploadInput.click();};
 $('#uploadDropzone').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();uploadInput.click();}};
 ['dragenter','dragover'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();$('#uploadDropzone').classList.add('drag-over');}));
 ['dragleave','drop'].forEach(type=>$('#uploadDropzone').addEventListener(type,e=>{e.preventDefault();$('#uploadDropzone').classList.remove('drag-over');}));
-$('#uploadDropzone').addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)handleChosenFile(f);});
+$('#uploadDropzone').addEventListener('drop',e=>{const files=[...e.dataTransfer.files];if(files.length)handleChosenFile(files[0]);});
 uploadInput.addEventListener('change',e=>{const f=e.target.files[0];if(f)handleChosenFile(f);e.target.value='';});
-$('#uploadFileCard').addEventListener('click',async e=>{const del=e.target.closest('[data-delete-file]'),dl=e.target.closest('[data-download-file]'),row=e.target.closest('[data-file-row]');if(del){if(confirm('Delete this original file from this browser? The current resume draft will remain.')){await deleteOriginalFile(del.dataset.deleteFile);if(selectedFileId===del.dataset.deleteFile)selectedFileId=null;await renderFileLibrary();}}else if(dl){await downloadOriginalFile(dl.dataset.downloadFile);}else if(row){selectedFileId=row.dataset.fileRow;await renderFileLibrary();const rec=await getOriginalFile(selectedFileId);if(rec){const ext=rec.name.split('.').pop().toLowerCase();if(ext==='pdf'||ext==='docx'){await renderUploadedOriginal(rec.blob,ext);if(ext==='docx'){await loadScriptOnce('https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js',()=>!!window.mammoth);const html=(await window.mammoth.convertToHtml({arrayBuffer:await rec.blob.arrayBuffer()})).value;setUploadedEditable(html,ext,rec.name);}else{const txt=await extractPdfText(rec.blob);setUploadedEditable('<pre>'+escapeHTML(txt)+'</pre>',ext,rec.name);}}else{const txt=await rec.blob.text();await renderUploadedOriginal(rec.blob,'txt');setUploadedEditable('<pre>'+escapeHTML(txt)+'</pre>',ext,rec.name);}switchView('upload');}}});
-$('#clearUploadFile').onclick=async()=>{if(!selectedFileId)return; if(confirm('Remove the selected original from this browser?')){await deleteOriginalFile(selectedFileId);selectedFileId=null;await renderFileLibrary();}};
+$('#toggleFileManage').onclick=async()=>{uploadManageMode=!uploadManageMode;selectedUploadFileIds.clear();await renderFileLibrary();};
+$('#selectAllUploads').onchange=async e=>{const files=await listOriginalFiles();selectedUploadFileIds.clear();if(e.target.checked)files.forEach(f=>selectedUploadFileIds.add(f.id));await renderFileLibrary();};
+$('#deleteSelectedUploads').onclick=async()=>{const ids=[...selectedUploadFileIds];if(!ids.length)return;if(!confirm(`Delete ${ids.length} selected original file${ids.length===1?'':'s'} from this browser? Your current resume draft will remain.`))return;await deleteOriginalFiles(ids);if(ids.includes(selectedFileId))selectedFileId=null;selectedUploadFileIds.clear();await renderFileLibrary();};
+$('#moreUploadActions').onclick=()=>{const note=$('#uploadSelectionCount');note.textContent=`${selectedUploadFileIds.size} selected · More actions will be added here`;};
+$('#uploadFileCard').addEventListener('click',async e=>{
+ const check=e.target.closest('[data-select-upload]');if(check){const id=check.dataset.selectUpload;if(check.checked)selectedUploadFileIds.add(id);else selectedUploadFileIds.delete(id);const files=await listOriginalFiles();updateUploadSelectionUI(files);const row=check.closest('[data-file-row]');row?.classList.toggle('is-bulk-selected',check.checked);return;}
+ if(uploadManageMode)return;
+ const dl=e.target.closest('[data-download-file]'),row=e.target.closest('[data-file-row]');
+ if(dl){await downloadOriginalFile(dl.dataset.downloadFile);return;}
+ if(row){selectedFileId=row.dataset.fileRow;await renderFileLibrary();const rec=await getOriginalFile(selectedFileId);if(rec){const ext=rec.name.split('.').pop().toLowerCase();if(ext==='pdf'||ext==='docx'){await renderUploadedOriginal(rec.blob,ext);if(ext==='docx'){await loadScriptOnce('https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js',()=>!!window.mammoth);const html=(await window.mammoth.convertToHtml({arrayBuffer:await rec.blob.arrayBuffer()})).value;setUploadedEditable(html,ext,rec.name);}else{const txt=await extractPdfText(rec.blob);setUploadedEditable('<pre>'+escapeHTML(txt)+'</pre>',ext,rec.name);}}else{const txt=await rec.blob.text();await renderUploadedOriginal(rec.blob,'txt');setUploadedEditable('<pre>'+escapeHTML(txt)+'</pre>',ext,rec.name);}switchView('upload');}}
+});
 $('#downloadOriginalUpload').onclick=()=>downloadOriginalFile();
 async function loadExportLib(kind){if(kind==='pdf')await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',()=>!!window.jspdf?.jsPDF);else await loadScriptOnce('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js',()=>!!window.docx?.Document);}
 function resumePlainText(){readFields();if(data.previewHtmlOverride){const holder=document.createElement('div');holder.innerHTML=data.previewHtmlOverride;return (holder.innerText||holder.textContent||'').replace(/\n{3,}/g,'\n\n').trim();}const lines=[data.name,data.title,[data.email,data.phone,data.location,data.links].filter(Boolean).join(' | '),'', 'PROFESSIONAL SUMMARY',data.summary,'','EXPERIENCE',...data.experience.flatMap(x=>[`${x.role||''} | ${x.company||''} | ${x.start||''} - ${x.end||''}`,x.details||'']),'','EDUCATION',...data.education.flatMap(x=>[`${x.role||''} | ${x.company||''}`,x.details||'']),'','SKILLS',...(data.skillsGroups||[]).flatMap(x=>[`${x.heading||''}${x.heading?':':''} ${x.description||''}`.trim()]),'','PROJECTS & CERTIFICATIONS',...data.extras.flatMap(x=>[`${x.name||''} (${x.type||''})`,x.details||''])];return lines.filter((x,i)=>x!==''||lines[i-1]!=='').join('\n');}

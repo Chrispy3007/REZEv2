@@ -679,3 +679,34 @@ body.reze-section-modal-open{overflow:hidden}
 .reze-section-modal .reze-modal-toolbar-divider {
   border-left-color: #806a91 !important;
 }
+
+
+/* Upload progress and file-library management controls */
+.upload-progress{margin:14px 0 4px;padding:16px 18px;border:1px solid rgba(185,164,255,.28);border-radius:16px;background:linear-gradient(120deg,rgba(48,35,68,.94),rgba(27,22,40,.96));box-shadow:0 12px 34px rgba(8,5,16,.2);}
+.upload-progress[hidden],.upload-selection-bar[hidden]{display:none!important}
+.upload-progress-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:11px}
+.upload-progress-file{display:flex;align-items:center;gap:12px;min-width:0}
+.upload-progress-icon{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:11px;background:rgba(185,164,255,.15);border:1px solid rgba(185,164,255,.3);color:#d8ccff;font-size:20px}
+.upload-progress-file b{display:block;max-width:min(70vw,640px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f5f1ff;font-size:13px}
+.upload-progress-file small{display:block;margin-top:3px;color:#bcaecc;font-size:11px}
+.upload-progress-top>strong{color:#e2d5ff;font-size:15px;font-variant-numeric:tabular-nums}
+.upload-progress-track{height:9px;overflow:hidden;border-radius:20px;background:rgba(255,255,255,.1);box-shadow:inset 0 1px 3px rgba(0,0,0,.25)}
+.upload-progress-track i{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#8f63cf,#c7a4ff 55%,#e4d5ff);box-shadow:0 0 16px rgba(185,164,255,.42);transition:width .28s ease}
+.upload-progress.has-error{border-color:rgba(238,130,150,.5)}
+.upload-progress.has-error .upload-progress-track i{background:linear-gradient(90deg,#a94d67,#ed9aaa)}
+.upload-files-head{gap:12px}
+.upload-manage-toggle{white-space:nowrap;border-color:rgba(185,164,255,.35)!important;color:#e4d7ff!important;background:rgba(185,164,255,.1)!important}
+.upload-manage-toggle.is-active{background:rgba(185,164,255,.24)!important;border-color:#b9a4ff!important;color:#fff!important}
+.upload-selection-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 12px;padding:10px 12px;border:1px solid rgba(185,164,255,.22);border-radius:12px;background:rgba(185,164,255,.075)}
+.upload-select-all{display:flex;align-items:center;gap:8px;color:var(--text);font-size:12px;font-weight:700;cursor:pointer}
+.upload-select-all input,.upload-file-check input{width:16px;height:16px;accent-color:#b9a4ff;cursor:pointer}
+#uploadSelectionCount{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.upload-selection-actions{display:flex;gap:7px;margin-left:auto;flex-wrap:wrap}
+.btn.danger-soft{background:rgba(177,65,88,.15);border:1px solid rgba(232,132,151,.38);color:#ffb8c2}
+.btn.danger-soft:hover:not(:disabled){background:rgba(177,65,88,.28);border-color:#e58ca1}
+.btn:disabled,.mini-tool:disabled{opacity:.45;cursor:not-allowed;filter:saturate(.5)}
+.upload-file-card{position:relative;transition:border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.upload-file-card.is-bulk-selected{border-color:#b9a4ff;background:rgba(185,164,255,.13);box-shadow:0 0 0 1px rgba(185,164,255,.18)}
+.upload-file-check{display:flex;align-items:center;justify-content:center;flex:0 0 22px;cursor:pointer}
+.upload-file-check input{width:17px;height:17px}
+@media(max-width:620px){.upload-selection-bar{align-items:flex-start}.upload-selection-actions{width:100%;margin-left:0}.upload-selection-actions button{flex:1}.upload-progress{padding:13px}.upload-progress-file b{max-width:62vw}}
