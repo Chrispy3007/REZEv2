@@ -79,6 +79,31 @@
   };walk(doc.body);
   return {text:clean(raw.value).replace(/\r/g,''),lines:lines.length?lines:clean(raw.value).split('\n').map(text=>({text,page:null,source:'docx'})),pages:[],warning:converted.messages?.length?'Some DOCX formatting could not be interpreted; review the extracted fields.':''};
  }
+ const DOMAIN_LEXICON={technology:/software|developer|programming|cloud|devops|cybersecurity|network|database|api|automation|qa|testing/i,finance:/accounting|audit|tax|financial|reconciliation|payroll|budget|forecast|treasury|compliance/i,healthcare:/clinical|patient|nursing|medical|hospital|diagnostic|pharmacy|healthcare/i,sales_marketing:/sales|revenue|pipeline|prospecting|marketing|campaign|seo|conversion|customer acquisition/i,human_resources:/recruitment|talent acquisition|human resources|employee relations|workforce|hris|payroll/i,operations:/operations|supply chain|logistics|procurement|inventory|warehouse|process improvement/i,project_management:/project manager|program manager|stakeholder|milestone|delivery|agile|scrum/i,education:/teaching|curriculum|instruction|lecturer|faculty|student|academic/i,legal:/litigation|legal|contract|counsel|paralegal|regulatory|case law/i,design:/ux|ui|user experience|graphic design|product design|figma|visual design/i,customer_service:/customer support|customer service|call centre|contact center|service desk|customer success/i};
+ function inferProfessionalContext(text){
+  const scores=Object.entries(DOMAIN_LEXICON).map(([domain,re])=>({domain,hits:(String(text).match(new RegExp(re.source,'ig'))||[]).length})).sort((a,b)=>b.hits-a.hits);
+  const top=scores[0], second=scores[1];
+  const industry=top?.hits?top.domain:'general';
+  const responsibilities=[];
+  const patterns=[['leadership',/led|managed|mentored|supervised|coached|directed/i],['delivery',/delivered|implemented|executed|launched|deployed|completed/i],['analysis',/analysed|analyzed|assessed|evaluated|investigated|audited|researched|identified|tested/i],['operations',/coordinated|operated|maintained|administered|streamlined|optimised|optimized/i],['customer',/supported|resolved|advised|served|retained|engaged/i],['creation',/designed|developed|created|built|authored|produced/i],['compliance',/complied|ensured compliance|governed|validated|documented|mitigated/i],['performance',/increased|reduced|improved|saved|grew|achieved|generated/i]];
+  for(const [tag,re] of patterns)if(re.test(text))responsibilities.push(tag);
+  return {industry,industryConfidence:top?.hits?(top.hits>=(second?.hits||0)*1.5?'medium':'low'):'low',industrySignals:scores.filter(x=>x.hits).slice(0,4),responsibilityThemes:responsibilities};
+ }
+ function validateAiSuggestion(payload,base){
+  if(!payload||typeof payload!=='object'||!payload.resume||typeof payload.resume!=='object')throw new Error('AI response did not contain a valid resume object.');
+  const incoming=payload.resume,allowed=['name','title','email','phone','location','links','summary','skills','experience','education','skillsGroups','projects','certifications','additionalInformation','customSections'];
+  const out=clone(base);
+  for(const k of allowed){if(incoming[k]===undefined)continue;if(['experience','education','skillsGroups','projects','certifications','additionalInformation','customSections'].includes(k)){if(!Array.isArray(incoming[k]))throw new Error('AI returned an invalid '+k+' collection.');out[k]=incoming[k].map(x=>({...x,id:typeof x.id==='string'?x.id:uid(k)}));}else if(typeof incoming[k]==='string')out[k]=incoming[k].slice(0,20000);else throw new Error('AI returned an invalid '+k+' field.');}
+  // Never let the classifier silently discard source text or fabricate provenance.
+  out.additionalInformation=[...(out.additionalInformation||[])];
+  return migrate(out,base.metadata?.sourceDocumentId);
+ }
+ async function requestAiClassification(text,base){
+  const cfg=window.REZE_AI_CONFIG||{};if(!cfg.endpoint)throw new Error('AI classification is not configured.');
+  const response=await fetch(cfg.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({task:'classify_resume',sourceText:String(text).slice(0,100000),schemaVersion:2,required:{preserveAllFacts:true,noFabrication:true,returnEvidence:true}})});
+  if(!response.ok)throw new Error('AI service returned HTTP '+response.status+'.');
+  return validateAiSuggestion(await response.json(),base);
+ }
  function classify(extracted,sourceId){
   const text=String(extracted.text||'').replace(/\r/g,''),lines=(extracted.lines?.length?extracted.lines:text.split('\n').map(text=>({text,page:null,source:'text'}))).map((x,i)=>({...x,index:i,text:clean(x.text).replace(/\s+/g,' ')})).filter(x=>x.text);
   const d=blank(),evidence={};
@@ -127,7 +152,8 @@
   const recognised=new Set(['intro','summary','experience','education','skills','certifications','projects']);
   for(const k of Object.keys(sections)){if(!recognised.has(k)){const rows=sections[k]||[];unknown.push(...rows.map(x=>({...x,section:k.replace(/^unknown_/,'').replace(/_/g,' ')})));}}
   if(unknown.length){d.additionalInformation=unknown.map(x=>({id:uid('info'),title:x.section||'Additional Information',content:x.text,sourcePage:x.page??null}));d.customSections.push({id:uid('section'),title:'Additional Information',body:unknown.map(x=>x.text).join('\n'),visible:true});mark('additionalInformation',unknown,'low','Preserved unclassified content for manual review');}
-  d.extras=[...d.projects.map(x=>({type:'Project',name:x.name,details:x.description})),...d.certifications.map(x=>({type:'Certification',name:x.name,details:x.details}))];d.metadata.sourceDocumentId=sourceId;d.provenance=evidence;
+  d.extras=[...d.projects.map(x=>({type:'Project',name:x.name,details:x.description})),...d.certifications.map(x=>({type:'Certification',name:x.name,details:x.details}))];d.metadata.sourceDocumentId=sourceId;d.metadata.professionalContext=inferProfessionalContext(text);d.provenance=evidence;
+  const ctx=d.metadata.professionalContext;mark('professionalContext',lines,ctx.industryConfidence,'Industry inferred from document terminology; general is used when signals are insufficient.');
   const missing=['name','title','email','phone','summary','experience','education','skillsGroups'].filter(k=>Array.isArray(d[k])?!d[k].length:!clean(d[k]));
   return {data:migrate(d,sourceId),evidence,unknownCount:unknown.length,missingFields:missing,quality:{detectedFields:Object.keys(evidence).length,missingFields:missing,needsReview:Object.values(evidence).filter(x=>x.confidence!=='high').length}};
  }
@@ -152,7 +178,7 @@
     ${status}<p>REZE has prepared an editable resume draft. High-confidence fields can be used immediately; check uncertain fields and missing information before approval. Original content remains available separately.</p><div class="rr-row"><span class="rr-status">Missing: ${esc((quality?.missingFields||[]).join(', ')||'None detected')}</span><span class="rr-status">Low confidence: ${esc(String(quality?.needsReview||0))}</span></div>
     <div class="rr-evidence-grid">${Object.entries(evidence||{}).map(([field,item])=>`<div class="rr-evidence"><span>${esc(field.replace(/^section:/,''))}</span><b class="rr-${esc(item.confidence||'low')}">${esc(item.confidence||'unknown')}</b></div>`).join('')||'<span class="rr-status">No field evidence available.</span>'}</div>
     <details class="rr-raw-data"><summary>Advanced: inspect or edit structured resume data</summary><textarea id="rrJson" spellcheck="false" aria-label="Extracted resume data">${esc(JSON.stringify(data,null,2))}</textarea></details>
-    <div class="rr-row"><label>Resume template <select id="rrTemplate"><option value="modern">Modern</option><option value="classic">Classic</option><option value="minimal">Minimal</option><option value="technical">Technical</option><option value="executive">Executive</option><option value="compact">Compact</option><option value="creative">Creative</option></select></label><label>Import destination <select id="rrDestination"><option value="new">Create a new resume</option><option value="merge">Merge into the currently open resume</option></select></label><label><input id="rrAiConsent" type="checkbox" disabled> Allow optional external AI classification (not configured in this browser)</label></div>
+    <div class="rr-row"><label>Resume template <select id="rrTemplate"><option value="modern">Modern</option><option value="classic">Classic</option><option value="minimal">Minimal</option><option value="technical">Technical</option><option value="executive">Executive</option><option value="compact">Compact</option><option value="creative">Creative</option></select></label><label>Import destination <select id="rrDestination"><option value="new">Create a new resume</option><option value="merge">Merge into the currently open resume</option></select></label><label><input id="rrAiConsent" type="checkbox" ${window.REZE_AI_CONFIG?.endpoint?"":"disabled"}> Allow optional AI classification for this import</label><button type="button" id="rrAiAnalyse" ${window.REZE_AI_CONFIG?.endpoint?"":"disabled"}>Analyse with AI</button><span id="rrAiStatus" class="rr-status">${window.REZE_AI_CONFIG?.endpoint?"AI is optional and requires your consent.":"AI backend not configured; rules-based classification remains available."}</span></div>
     <div class="rr-row"><div id="rrTemplatePreview" class="rr-status">Template mapping preview will appear here.</div></div><div id="rrConflictPanel" hidden><p><b>Resolve top-level field conflicts</b> — choose which version to keep for each populated field.</p><div class="rr-conflicts" id="rrConflicts"></div><p class="rr-warning">Repeating entries will be added as separate entries; possible duplicates are not merged automatically.</p></div>
     <div class="rr-row" style="justify-content:space-between"><span class="rr-status">Nothing is applied until you approve this review.</span><div class="rr-row" style="margin:0"><button type="button" id="rrCancel">Cancel import</button><button type="button" class="primary" id="rrApprove">Approve & import</button></div></div>
    </section>`;
@@ -161,6 +187,14 @@
    template.value=data.template||'modern';
    const refreshTemplate=()=>{let v;try{v=JSON.parse(json.value)}catch{templatePreview.textContent='Correct the JSON to preview template mapping.';return}const fields=registry[template.value]||registry.modern;const mapped=fields.filter(path=>{const key=path.replace('[]','').split('.').pop();if(path.includes('[]'))return Array.isArray(v[path.split('.')[0]])&&v[path.split('.')[0]].length>0;return !!String(v[key]??'').trim()});templatePreview.textContent=`${template.options[template.selectedIndex].text} template · ${mapped.length} of ${fields.length} placeholder groups currently populated. Empty fields remain blank.`;};
    template.addEventListener('change',refreshTemplate);json.addEventListener('input',refreshTemplate);refreshTemplate();
+   const aiConsent=$('#rrAiConsent',backdrop),aiButton=$('#rrAiAnalyse',backdrop),aiStatus=$('#rrAiStatus',backdrop);
+   if(aiButton)aiButton.addEventListener('click',async()=>{
+    if(!aiConsent?.checked){aiStatus.textContent='Please provide consent for this import before sending resume text.';return;}
+    aiButton.disabled=true;aiStatus.textContent='Sending extracted text to the configured AI service…';
+    try{const current=getImported();const suggested=await requestAiClassification(originalText,current);json.value=JSON.stringify(suggested,null,2);refreshTemplate();aiStatus.textContent='AI suggestions received. Review every field and approve manually; nothing has been applied.';}
+    catch(err){aiStatus.textContent='AI classification failed: '+err.message;}
+    finally{aiButton.disabled=false;}
+   });
    const existing=migrate(active);
    const topFields=['name','title','email','phone','location','links','summary','skills'];
    const getImported=()=>{let v;try{v=JSON.parse(json.value)}catch(e){throw new Error('The extracted data is not valid JSON: '+e.message)}if(!v||typeof v!=='object')throw new Error('Resume data must be a JSON object.');return migrate(v,record?.id);};
@@ -225,6 +259,6 @@
    if(libRaw){const list=JSON.parse(libRaw);if(Array.isArray(list)){if(list.some(r=>!r.data?.schemaVersion||r.data.schemaVersion<2))localStorage.setItem('reze-schema-v2-backup-library',libRaw);localStorage.setItem(LIB,JSON.stringify(list.map(r=>({...r,data:migrate(r.data||{})}))));}}
   }catch(err){console.warn('REZE schema migration was not applied; original stored data was retained.',err);}
  }
- window.REZEImportEngine={importFile,registry,migrate,classify};
+ window.REZEImportEngine={importFile,registry,migrate,classify,inferProfessionalContext,requestAiClassification};
  migrateStoredResumes();
 })();
