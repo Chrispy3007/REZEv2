@@ -60,25 +60,6 @@ function normalizeTextValue(value,field){
   add('',value);
   return parts.join(' | ').slice(0,20000);
 }
-function titleCaseKey(value){return typeof value==='string'?value:'';}
-
-function normalizeLinks(value){
-  if(typeof value==='string')return text(value,20000);
-  const parts=[];
-  const add=(label,item,depth=0)=>{
-    if(parts.length>=100||depth>3||item==null)return;
-    if(typeof item==='string'){const v=text(item,4000).trim();if(v)parts.push(label?label+': '+v:v);return;}
-    if(Array.isArray(item)){item.slice(0,50).forEach(x=>add(label,x,depth+1));return;}
-    if(typeof item==='object'){
-      const url=[item.url,item.href,item.link,item.value].find(x=>typeof x==='string'&&x.trim());
-      const name=[item.label,item.name,item.type].find(x=>typeof x==='string'&&x.trim())||label;
-      if(url){add(name,url,depth+1);return;}
-      for(const [key,child] of Object.entries(item))add(label?label+' '+key:key,child,depth+1);
-    }
-  };
-  add('',value);
-  return parts.join(' | ').slice(0,20000);
-}
 function validate(raw){
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Model response did not contain a resume object.');
   const resume={};for(const [k,v] of Object.entries(raw)){if(!ALLOWED_FIELDS.has(k))continue;if(STRING_FIELDS.has(k)){resume[k]=normalizeTextValue(v,k);}else if(ARRAY_FIELDS.has(k)){if(!Array.isArray(v))throw new Error('Invalid collection: '+k);resume[k]=v.slice(0,100).map(x=>cleanItem(x,k)).filter(Boolean);}}
