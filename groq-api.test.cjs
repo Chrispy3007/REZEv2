@@ -20,7 +20,7 @@ function response() {
     assert.equal(options.headers.Authorization, 'Bearer test-secret');
     const sent = JSON.parse(options.body);
     assert.equal(sent.model, 'test-model');
-    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ resume: { name: 'Test Person', links: { linkedin: 'https://linkedin.com/in/test', github: 'https://github.com/test' }, skillsGroups: [{ heading: 'Security', description: 'VAPT' }], experience: [{ company: 'Example', role: 'Analyst', responsibilities: ['Tested applications'] }] } }) } }] }) };
+    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ resume: { name: 'Test Person', links: { linkedin: 'https://linkedin.com/in/test', github: 'https://github.com/test' }, skills: { heading: 'Security', skills: ['VAPT', 'Burp Suite'], description: 'Web application testing' }, skillsGroups: [{ heading: 'Security', description: 'VAPT' }], experience: [{ company: 'Example', role: 'Analyst', responsibilities: ['Tested applications'] }] } }) } }] }) };
   };
   try {
     const req = { method: 'POST', headers: { origin: 'https://chrispy3007.github.io', 'x-forwarded-for': '192.0.2.1' }, body: { task: 'classify_resume', sourceText: 'Test Person\nSecurity: VAPT' } };
@@ -30,6 +30,10 @@ function response() {
     assert.equal(typeof res.body.resume.links, 'string');
     assert.match(res.body.resume.links, /LinkedIn|linkedin/i);
     assert.match(res.body.resume.links, /https:\/\/github.com\/test/);
+    assert.equal(typeof res.body.resume.skills, 'string');
+    assert.match(res.body.resume.skills, /Security/);
+    assert.match(res.body.resume.skills, /VAPT/);
+    assert.match(res.body.resume.skills, /Burp Suite/);
     assert.equal(res.body.resume.experience[0].responsibilities[0], 'Tested applications');
     assert.equal(res.headers['Access-Control-Allow-Origin'], 'https://chrispy3007.github.io');
 
