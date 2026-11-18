@@ -114,7 +114,8 @@
   <div class="page-card narrow"><div class="eyebrow">ROLE-SPECIFIC ALIGNMENT</div><h2>Job description matching</h2><p>Compare the active resume with a role's requirements. Scores are REZE estimates, not a hiring or ATS guarantee.</p>
     <label>Job title (optional)<input id="matchJobTitle" placeholder="e.g. Cybersecurity Analyst"></label>
     <label>Paste job description<textarea id="jobDescription" rows="9" placeholder="Paste the complete job description here..."></textarea></label>
-    <label class="consent-inline"><input type="checkbox" id="matchContextConsent"><span><b>Use my active resume for this comparison</b><small>Required to calculate a match. Resume content is used only for this request.</small></span></label>
+    <label class="consent-inline"><input type="checkbox" id="matchContextConsent"><span><b>Use my active resume for this comparison</b><small>Required to calculate a local match. Resume text stays in this browser for this step.</small></span></label>
+    <label class="consent-inline"><input type="checkbox" id="matchAiConsent"><span><b>Optionally use REZE AI for tailored recommendations</b><small>Off by default. When enabled, your active resume details and this job description are sent to your configured REZE AI endpoint only after you request AI recommendations.</small></span></label>
     <div class="button-row"><button class="btn primary" id="runMatch" type="button">Analyse job match</button><button class="btn secondary" id="clearMatch" type="button">Clear</button></div>
     <div id="matchResults" aria-live="polite"></div>
   </div>
