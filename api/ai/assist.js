@@ -21,13 +21,15 @@ function cors(req, res) {
 function isLimited(req) {
   const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now();
+  const windowMs = Math.max(60000, Number.parseInt(process.env.AI_RATE_WINDOW_MS || '900000', 10) || 900000);
+  const limit = Math.max(1, Number.parseInt(process.env.AI_RATE_LIMIT || '20', 10) || 20);
   const current = rateBuckets.get(ip);
-  if (!current || now - current.start > 900000) {
+  if (!current || now - current.start > windowMs) {
     rateBuckets.set(ip, { start: now, count: 1 });
     return false;
   }
   current.count += 1;
-  return current.count > 20;
+  return current.count > limit;
 }
 function plain(value, limit = MAX_TEXT_CHARS) {
   return typeof value === 'string' ? value.slice(0, limit).trim() : '';
@@ -36,8 +38,8 @@ function providerConfig(provider) {
   const keyName = provider === 'groq' ? (process.env.GROQ_API_KEY || process.env.AI_API_KEY) :
     provider === 'openai' ? (process.env.OPENAI_API_KEY || process.env.AI_API_KEY) :
     provider === 'gemini' ? (process.env.GEMINI_API_KEY || process.env.AI_API_KEY) : '';
-  const configuredModel = process.env.AI_MODEL;
-  const model = configuredModel || (provider === 'groq' ? 'openai/gpt-oss-20b' : '');
+  const model = process.env[provider.toUpperCase() + '_MODEL'] ||
+    (provider === 'groq' ? (process.env.GROQ_MODEL || 'openai/gpt-oss-20b') : process.env.AI_MODEL || '');
   return { provider, key: keyName || '', model };
 }
 function systemPrompt() {
@@ -119,10 +121,10 @@ async function callGemini(config, messages) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
   try {
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(config.key);
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.key },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents,
