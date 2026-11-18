@@ -312,7 +312,7 @@
     catch(e){alert('Could not save this resume in browser storage. Export a copy before continuing.');return false;}
     $('#loadSaved')?.click();
     $('#nav [data-view="editor"]')?.click();
-    setTimeout(renderSampleEditorBanner,30);
+    setTimeout(()=>{decorateCurrentPapers(data.rezeTemplateId);renderSampleEditorBanner();},40);
     return true;
   }
   function createBlankFromTemplate() {
@@ -411,7 +411,12 @@
   }
   let lastAIRequest=null, lastAppliedChange=null;
   async function runWritingTool(tool) {
-    const target=$('#assistantTarget').value;
+    const targetSelect=$('#assistantTarget');
+    const d=currentData();
+    if(tool==='summary')targetSelect.value='summary';
+    if(tool==='experience')targetSelect.value=d.experience?.length?'experience:0':'copy';
+    if(tool==='skills')targetSelect.value=d.skillsGroups?.length?'skills:0':'copy';
+    const target=targetSelect.value;
     const typed=clean($('#assistantInput').value);
     const source=typed||targetText(target);
     const useContext=contextEnabled();
@@ -453,7 +458,7 @@
     if(target==='summary'){original=d.summary||'';d.summary=suggestion;}
     else if(target.startsWith('experience:')){const i=Number(target.split(':')[1]);if(!d.experience?.[i])return;original=d.experience[i].details||'';d.experience[i].details=suggestion;}
     else if(target.startsWith('skills:')){const i=Number(target.split(':')[1]);if(!d.skillsGroups?.[i])return;original=d.skillsGroups[i].description||'';d.skillsGroups[i].description=suggestion;}
-    lastAppliedChange={target:target,original:original};
+    lastAppliedChange={target:target,original:original,applied:suggestion};
     core()?.update?.();
     $('#aiReviewPanel').hidden=true;
     setAIStatus('Applied to your resume. You can undo this change.',false);
@@ -467,6 +472,8 @@
   function undoAIChange() {
     if(!lastAppliedChange)return;
     const d=currentData(),t=lastAppliedChange.target;
+    const current=t==='summary'?d.summary:t.startsWith('experience:')?d.experience?.[Number(t.split(':')[1])]?.details:t.startsWith('skills:')?d.skillsGroups?.[Number(t.split(':')[1])]?.description:undefined;
+    if(current!==lastAppliedChange.applied){setAIStatus('This section has changed since the AI suggestion was applied. Undo was not performed to protect your newer edits.',true);return;}
     if(t==='summary')d.summary=lastAppliedChange.original;
     else if(t.startsWith('experience:')){const i=Number(t.split(':')[1]);if(d.experience?.[i])d.experience[i].details=lastAppliedChange.original;}
     else if(t.startsWith('skills:')){const i=Number(t.split(':')[1]);if(d.skillsGroups?.[i])d.skillsGroups[i].description=lastAppliedChange.original;}
@@ -578,8 +585,8 @@
     const endpointInput=$('#rezeAiEndpoint');
     if(endpointInput){endpointInput.value=localStorage.getItem(ENDPOINT_KEY)||'';if(endpointInput.value&&$('#aiEndpointStatus'))$('#aiEndpointStatus').textContent='AI endpoint saved in this browser. Test the connection to verify the provider configuration.';}
     const consent=$('#aiContextConsent');
-    if(consent)consent.checked=localStorage.getItem(CONTEXT_KEY)==='true';
-    if(consent)consent.addEventListener('change',()=>localStorage.setItem(CONTEXT_KEY,consent.checked?'true':'false'));
+    // Resume context consent is session-scoped and starts off on every page load.
+    if(consent)consent.checked=false;
     const matchConsent=$('#matchContextConsent');
     if(matchConsent)matchConsent.checked=false;
 
