@@ -281,11 +281,16 @@
     });
   }
   function recommendTemplate() {
+    const industry=$('#templateGuideIndustry').value;
     const level=$('#templateGuideLevel').value;
     const style=$('#templateGuideStyle').value;
     const priority=$('#templateGuidePriority').value;
     let id='reze-minimal';
     if(style==='Creative'||priority==='Visual appearance')id='creative-studio';
+    else if(industry==='Healthcare & Life Sciences')id='clinical-pro';
+    else if(industry==='Science & Research'||industry==='Education & Training'||industry==='Public Sector & Nonprofit')id='academic-pro';
+    else if(industry==='Design & Creative'||industry==='Media & Communications')id='creative-studio';
+    else if(industry==='Software & IT'||industry==='Cybersecurity'||industry==='Data & Analytics')id='tech-forward';
     else if(level==='Senior')id=priority==='ATS compatibility'?'harvard-classic':'executive-elite';
     else if(level==='Fresher')id='fresher-first';
     else if(style==='Professional')id='harvard-classic';
@@ -377,7 +382,7 @@
     const url=endpoint();
     if(!url)throw new Error('Configure your REZE AI endpoint in Settings before using AI tools.');
     let parsed;
-    try { const u=new URL(url); if(u.protocol!=='https:'&&u.hostname!=='localhost'&&u.hostname!=='127.0.0.1')throw new Error('The AI endpoint must use HTTPS.'); }
+    try { const u=new URL(url); if(u.protocol!=='https:'&&!(u.protocol==='http:'&&(u.hostname==='localhost'||u.hostname==='127.0.0.1')))throw new Error('The AI endpoint must use HTTPS.'); }
     catch(e){throw new Error('Enter a valid HTTPS REZE AI endpoint URL in Settings.');}
     const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     try { parsed=await response.json(); } catch { throw new Error('The AI service returned an unreadable response.'); }
@@ -482,7 +487,7 @@
     const button=$('#aiSendChat');button.disabled=true;button.textContent='Thinking…';
     try {
       const result=await callAI({
-        action:'chat',message:message,history:chatMessages.slice(-12),
+        action:'chat',message:message,history:chatMessages.slice(-13,-1),
         resumeContext:contextEnabled()?buildResumeContext():null
       });
       appendChat('assistant',clean(result.reply||result.suggestion||'I could not produce a response.'));
@@ -549,7 +554,7 @@
   function init() {
     if(!core()) { console.warn('REZE core is not ready; AI/sample features will retry on load.'); return; }
     const endpointInput=$('#rezeAiEndpoint');
-    if(endpointInput)endpointInput.value=localStorage.getItem(ENDPOINT_KEY)||'';
+    if(endpointInput){endpointInput.value=localStorage.getItem(ENDPOINT_KEY)||'';if(endpointInput.value&&$('#aiEndpointStatus'))$('#aiEndpointStatus').textContent='AI endpoint saved in this browser. Test the connection to verify the provider configuration.';}
     const consent=$('#aiContextConsent');
     if(consent)consent.checked=localStorage.getItem(CONTEXT_KEY)==='true';
     if(consent)consent.addEventListener('change',()=>localStorage.setItem(CONTEXT_KEY,consent.checked?'true':'false'));
