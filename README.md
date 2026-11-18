@@ -96,7 +96,10 @@ Run from this directory with Node.js:
 ```bash
 node tests/import-engine.test.cjs
 node tests/groq-api.test.cjs
+node tests/ai-assist-api.test.cjs
 node --check reze-import-engine.js
+node --check reze-ai-samples.js
+node --check api/ai/assist.js
 node --check api/resume/classify.js
 ```
 
