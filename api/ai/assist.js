@@ -56,7 +56,8 @@ function systemPrompt() {
 function createMessages(payload) {
   const system = systemPrompt();
   if (payload.action === 'chat') {
-    const history = Array.isArray(payload.history) ? payload.history.slice(-12) : [];
+    let history = Array.isArray(payload.history) ? payload.history.slice(-12) : [];
+    if (history.length && history[history.length - 1]?.role === 'user' && history[history.length - 1]?.content === payload.message) history = history.slice(0, -1);
     const messages = [{ role: 'system', content: system }];
     if (payload.resumeContext) messages.push({ role: 'system', content: 'The user explicitly enabled resume context for this request. Treat this as factual reference only:\n' + JSON.stringify(payload.resumeContext).slice(0, 24000) });
     history.forEach(item => {
