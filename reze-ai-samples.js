@@ -547,7 +547,29 @@
       '<div class="match-details-grid"><section><h4>Matching keywords</h4><div class="match-token-list">'+(matched.map(x=>'<i class="match-token good">'+safe(x)+'</i>').join('')||'<p class="hint">No clear keyword matches found.</p>')+'</div></section><section><h4>Potential gaps to review</h4><div class="match-token-list">'+(trueMissing.slice(0,30).map(x=>'<i class="match-token missing">'+safe(x)+'</i>').join('')||'<p class="hint">No obvious keyword gaps in this heuristic check.</p>')+'</div></section></div>'+
       '<section class="match-improvements"><h4>Recommended next steps</h4><ul><li>Review the missing terms and add only those that accurately describe your skills or experience.</li><li>Make relevant experience more specific by describing the task, method and outcome you can substantiate.</li><li>Check that your most relevant qualifications and projects are easy to find.</li></ul></section>'+
       '<p class="match-disclaimer">These are heuristic estimates, not a prediction of an employer ATS decision. ATS products and employer configurations differ. Keyword overlap does not prove qualification; a missing term does not prove a skill gap.</p>'+
-      '<div class="ats-checklist-mini"><h4>ATS readiness checklist</h4>'+ats.checks.map(x=>'<div class="check '+(x[1]?'':'missing')+'"><span>'+safe(x[0])+'</span><em>'+(x[1]?'✓ Ready':'＋ Review')+'</em></div>').join('')+'</div>';
+      '<div class="ats-checklist-mini"><h4>ATS readiness checklist</h4>'+ats.checks.map(x=>'<div class="check '+(x[1]?'':'missing')+'"><span>'+safe(x[0])+'</span><em>'+(x[1]?'✓ Ready':'＋ Review')+'</em></div>').join('')+'</div>'+
+      '<section class="match-ai-panel"><h4>Want more tailored recommendations?</h4><p>REZE AI can review the job description alongside your resume and suggest specific improvements. This is a separate AI request.</p><button class="btn primary" id="getMatchAiAdvice" type="button" '+($('#matchAiConsent').checked?'':'disabled')+'>Generate AI recommendations</button><div id="matchAiAdvice" class="match-ai-advice" aria-live="polite"></div></section>';
+  }
+  async function getMatchAiAdvice() {
+    if(!$('#matchAiConsent').checked){$('#matchAiAdvice').textContent='Enable the separate AI consent option before sending resume details and the job description to REZE AI.';return;}
+    const jd=clean($('#jobDescription').value);
+    if(!jd){$('#matchAiAdvice').textContent='Paste a job description first.';return;}
+    const d=currentData(),button=$('#getMatchAiAdvice');
+    button.disabled=true;button.textContent='Preparing recommendations…';
+    try {
+      const result=await callAI({
+        action:'suggestion',tool:'job-match',
+        instruction:'Compare this resume with the job description. Identify relevant evidence already present, point out requirements that appear unsupported or missing, and suggest truthful edits to existing resume content. Do not claim the candidate has a missing skill. Do not invent experience, tools, credentials or metrics. Return clear, actionable recommendations.',
+        sourceText:resumeSearchText(d),resumeContext:buildResumeContext(),
+        jobDescription:jd,targetRole:clean($('#matchJobTitle').value)||d.title||'Target role'
+      });
+      const host=$('#matchAiAdvice');
+      host.textContent=result.suggestion||'No AI recommendations were returned.';
+      host.classList.add('has-content');
+    } catch(error) {
+      $('#matchAiAdvice').textContent=error.message||'Could not reach the REZE AI service. Check the endpoint in Settings.';
+      $('#matchAiAdvice').classList.add('has-error');
+    } finally {button.disabled=false;button.textContent='Generate AI recommendations';}
   }
 
   /* --------------------------------- Bindings --------------------------------- */
@@ -624,7 +646,9 @@
     });
     $('#testAiEndpoint')?.addEventListener('click',testAIEndpoint);
     $('#runMatch').onclick=runMatch;
-    $('#clearMatch')?.addEventListener('click',()=>{$('#jobDescription').value='';$('#matchJobTitle').value='';$('#matchResults').innerHTML='';$('#matchContextConsent').checked=false;});
+    $('#matchAiConsent')?.addEventListener('change',()=>{const button=$('#getMatchAiAdvice');if(button)button.disabled=!$('#matchAiConsent').checked;});
+    document.addEventListener('click',e=>{if(e.target.closest('#getMatchAiAdvice'))getMatchAiAdvice();});
+    $('#clearMatch')?.addEventListener('click',()=>{$('#jobDescription').value='';$('#matchJobTitle').value='';$('#matchResults').innerHTML='';$('#matchContextConsent').checked=false;$('#matchAiConsent').checked=false;});
 
     document.addEventListener('click',e=>{if(e.target.closest('#nav [data-view="assistant"]'))updateAITargets();if(e.target.closest('#nav [data-view="editor"]'))renderSampleEditorBanner();});
     document.addEventListener('input',e=>{if(e.target.matches('[data-field],[data-array],[data-skillgroup]')){updateAITargets();renderSampleEditorBanner();}});
