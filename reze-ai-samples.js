@@ -122,7 +122,7 @@
     const previousCompany=pick(fictionalCompanies.filter(x=>x!==company),rng);
     const school=pick(fictionalSchools,rng);
     const skills=[...industry.skills].sort(()=>rng()-.5).slice(0,7);
-    const details=sampleDetails(role,industry,level.id).join('\n');
+    const details=sampleDetails(role,industry,level.id,rng).join('\n');
     let experience=[],education=[],extras=[];
     if(level.id==='fresher') {
       experience=[{role:role+' Intern',company:company,start:'Jun 2025',end:'Aug 2025',details:'Assisted with supervised ' + industry.name.toLowerCase() + ' tasks and maintained clear project notes.\nContributed to a guided team assignment and presented the completed work.\nApplied feedback to improve the final deliverable.'}];
