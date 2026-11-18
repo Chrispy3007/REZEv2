@@ -230,3 +230,12 @@ body.light .sample-editor-banner{background:#f7f0fc}
 @media(max-width:1250px){.template-gallery-layout,.sample-content-grid{grid-template-columns:1fr}.template-preview-panel,.sample-preview-panel{position:relative;top:auto}.sample-paper-viewport .resume-paper,.template-paper-wrap .resume-paper{max-width:760px;margin:0 auto}.sample-filter-panel{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.ai-assistant-layout{grid-template-columns:1fr}.ai-tools-panel{grid-template-columns:repeat(2,minmax(0,1fr))}.ai-panel-title{grid-column:1/-1}.ai-writing-fields{grid-template-columns:1fr}.sample-filter-panel{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){.template-library-head,.sample-library-head,.ai-assistant-heading{display:block}.template-count-pill,.ai-status-pill{display:inline-flex;margin-top:12px}.template-discovery-bar{display:grid;grid-template-columns:1fr}.template-discovery-bar select{max-width:none}.reze-template-grid,.sample-grid{grid-template-columns:1fr}.guided-template-fields,.sample-generate-fields,.sample-filter-panel{grid-template-columns:1fr}.template-preview-actions,.sample-preview-actions{grid-template-columns:1fr}.sample-editor-banner{align-items:flex-start;flex-direction:column}.ai-privacy-strip{align-items:flex-start;flex-direction:column}.ai-tools-panel{grid-template-columns:1fr}.ai-comparison-grid,.match-score-grid,.match-details-grid{grid-template-columns:1fr}.ai-chat-composer{grid-template-columns:1fr}.ai-chat-composer button{justify-self:end}.sample-preview-head{flex-direction:column}.sample-preview-head select{max-width:none;width:100%}}
+
+.match-ai-panel{margin-top:18px;padding:14px;border:1px solid #9d77bc55;border-radius:12px;background:#8c5fb012}
+.match-ai-panel h4{font-size:11px;margin:0 0 6px}
+.match-ai-panel p{font-size:10px;line-height:1.55;color:var(--muted)}
+.match-ai-panel button:disabled{opacity:.48;cursor:not-allowed}
+.match-ai-advice{white-space:pre-wrap;line-height:1.65;font-size:11px;color:var(--text);margin-top:12px}
+.match-ai-advice.has-content{padding:12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)}
+.match-ai-advice.has-error{color:#e7a5b0}
+body.light .match-ai-panel{background:#faf5ff}
