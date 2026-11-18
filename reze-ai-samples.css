@@ -92,7 +92,7 @@
 .sample-card-action b{font-size:15px}
 .sample-no-results{grid-column:1/-1;padding:28px;text-align:center;border:1px dashed var(--line);border-radius:13px;color:var(--muted)}
 .sample-no-results p{font-size:11px}
-.sample-generate-fields{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(120px,.8fr) auto;gap:9px;align-items:end}
+.sample-generate-fields{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(120px,.8fr) auto;gap:9px;align-items:end}
 .sample-preview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
 .sample-preview-head h3{font-size:17px;margin:0 0 5px}
 .sample-preview-head p{font-size:10px;color:var(--muted);margin:0}
