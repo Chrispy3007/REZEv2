@@ -87,23 +87,29 @@
     return () => { h += 0x6D2B79F5; let t=h; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; };
   }
   const pick = (list,rng) => list[Math.floor(rng()*list.length)];
-  function sampleDetails(role,industry,level) {
+  function sampleDetails(role,industry,level,rng) {
     const domain=industry.name.toLowerCase();
-    if(level==='fresher') return [
-      'Supported a supervised ' + domain + ' workflow and maintained clear task documentation.',
-      'Completed a practical project involving ' + industry.project.toLowerCase() + ' and presented the approach to peers.',
-      'Collaborated with a small project team, incorporated feedback and tracked deliverables to completion.'
+    const roleName=String(role||'professional').toLowerCase();
+    let lines;
+    if(level==='fresher') lines=[
+      'Completed supervised ' + domain + ' tasks relevant to ' + roleName + ' workflows and documented the approach.',
+      'Built a practical portfolio exercise around ' + industry.project.toLowerCase() + ' and presented the work to peers.',
+      'Collaborated with a small project group, incorporated review feedback and tracked deliverables to completion.',
+      'Reviewed project requirements, organized supporting material and prepared a clear handover summary.'
     ];
-    if(level==='senior') return [
+    else if(level==='senior') lines=[
       'Led cross-functional planning for ' + domain + ' initiatives and aligned delivery with agreed priorities.',
-      'Introduced a repeatable review process that improved handoffs, documentation quality and accountability.',
-      'Coached team members, reviewed complex work and communicated risks and options to senior stakeholders.'
+      'Introduced a repeatable review process that strengthened handoffs, documentation quality and accountability.',
+      'Coached colleagues, reviewed complex work and communicated delivery risks and options to senior stakeholders.',
+      'Set working standards for ' + roleName + ' activities and supported continuous improvement across the team.'
     ];
-    return [
-      'Delivered day-to-day ' + domain + ' work and documented decisions, outcomes and follow-up actions.',
+    else lines=[
+      'Delivered day-to-day ' + domain + ' work aligned with ' + roleName + ' priorities and documented decisions and follow-up actions.',
       'Partnered with colleagues to resolve issues, improve handoffs and keep work aligned with team standards.',
-      'Prepared concise reports and recommendations to support operational and project decisions.'
+      'Prepared concise reports and recommendations to support operational and project decisions.',
+      'Reviewed deliverables against agreed requirements and coordinated timely follow-up with relevant stakeholders.'
     ];
+    return lines.sort(()=>rng()-.5).slice(0,3);
   }
   function makeProfile(industryId,role,levelId,seed,customId) {
     const industry=industryById(industryId);
@@ -151,7 +157,7 @@
     };
   }
   const initialSamples = [];
-  industries.forEach((industry,i)=>levelList.forEach((level,j)=>initialSamples.push(makeProfile(industry.id,industry.roles[0],level.id,'starter-'+i+'-'+j))));
+  industries.forEach((industry,i)=>levelList.forEach((level,j)=>initialSamples.push(makeProfile(industry.id,industry.roles[j%industry.roles.length],level.id,'starter-'+i+'-'+j))));
   function readGenerated() { try { const v=JSON.parse(localStorage.getItem(GENERATED_KEY)||'[]'); return Array.isArray(v)?v:[]; } catch { return []; } }
   function saveGenerated(list) { try { localStorage.setItem(GENERATED_KEY,JSON.stringify(list.slice(-80))); } catch(e) { console.warn('Could not save generated sample catalogue',e); } }
   let generatedSamples=readGenerated();
@@ -229,6 +235,8 @@
   function renderSampleFilters() {
     fillSelect($('#sampleIndustryFilter'),industries.map(x=>({value:x.id,label:x.name})),'All 22 industries');
     fillSelect($('#sampleRoleFilter'),[...new Set(industries.flatMap(x=>x.roles))].sort().map(x=>({value:x,label:x})),'All job roles');
+    const customIndustry=$('#customSampleIndustry');
+    if(customIndustry)customIndustry.innerHTML='<option value="auto">Auto-detect / use current filter</option>'+industries.map(x=>'<option value="'+safe(x.id)+'">'+safe(x.name)+'</option>').join('');
     const templateSelect=$('#samplePreviewTemplate');
     if(templateSelect)templateSelect.innerHTML=templates.map(t=>'<option value="'+t.id+'">'+safe(t.name)+'</option>').join('');
     if(templateSelect)templateSelect.value=selectedSampleTemplate;
@@ -237,13 +245,16 @@
     const requested=clean($('#customSampleRole').value);
     const level=$('#customSampleLevel').value||'mid';
     const industryFilter=$('#sampleIndustryFilter').value||'all';
-    let industry=industryFilter!=='all'?industryById(industryFilter):industries[0];
-    if(requested) {
-      const found=industries.find(x=>x.roles.some(r=>r.toLowerCase()===requested.toLowerCase()));
-      if(found&&industryFilter==='all')industry=found;
-    } else if(industryFilter==='all') {
-      industry=pick(industries,Math.random);
+    const customIndustry=$('#customSampleIndustry')?.value||'auto';
+    let industry=customIndustry!=='auto'?industryById(customIndustry):industryFilter!=='all'?industryById(industryFilter):null;
+    if(!industry&&requested) {
+      industry=industries.find(x=>x.roles.some(r=>r.toLowerCase()===requested.toLowerCase()));
+      if(!industry) {
+        const q=requested.toLowerCase();
+        industry=industries.find(x=>(x.name+' '+x.roles.join(' ')+' '+x.skills.join(' ')).toLowerCase().split(/[^a-z0-9+#]+/).some(word=>word.length>3&&q.includes(word)));
+      }
     }
+    if(!industry)industry=pick(industries,Math.random);
     const role=requested||pick(industry.roles,Math.random);
     const id=randomId('generated-sample');
     const profile=makeProfile(industry.id,role,level,'custom-'+id,id);
