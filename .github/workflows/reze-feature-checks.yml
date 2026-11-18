@@ -1,0 +1,27 @@
+name: REZE feature checks
+
+on:
+  push:
+    branches:
+      - feat/reze-ai-assistant-sample-library
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  syntax-and-api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check reze-ai-samples.js
+          node --check api/ai/assist.js
+      - name: Test AI endpoint
+        run: node tests/ai-assist-api.test.cjs
